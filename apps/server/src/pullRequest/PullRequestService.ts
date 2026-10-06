@@ -184,6 +184,8 @@ export type PullRequestError = PullRequestUnavailableError | PullRequestOperatio
 const routingCredential = Context.Reference<{
   readonly credentialFingerprint: string;
   readonly viewer: string;
+  readonly accountId: string;
+  readonly project: SupportedProject;
 } | null>("t3/PullRequestService/routingCredential", { defaultValue: () => null });
 // Internal only: the client cannot choose its cache's credential namespace.
 const credentialNamespace = Symbol("pullRequestCredentialNamespace");
@@ -755,6 +757,7 @@ export const make = Effect.gen(function* () {
 
   const listWorkspaceProjects = (
     filter: Pick<PullRequestListInput, "projectId" | "projectIds" | "host">,
+    deduplicate = true,
   ): Effect.Effect<WorkspaceProjects, PullRequestError> =>
     (filter.projectId === undefined
       ? projects.listShells(
@@ -833,7 +836,7 @@ export const make = Effect.gen(function* () {
             host,
             kind === "azure-devops" ? identity.canonicalKey : repository,
           );
-          if (seen.has(key)) continue;
+          if (deduplicate && seen.has(key)) continue;
           seen.add(key);
           if (api === null) {
             const counted = unimplemented.get(host);
@@ -860,11 +863,11 @@ export const make = Effect.gen(function* () {
   /**
    * The project whose checkout and credentials serve a reference. The project's own
    * repository is the default; a reference that names a `host` may instead point at any
-   * repository on that host. Prefer its own checkout; providers with explicit repository
-   * targeting can fall back to another checkout on the host. Azure derives its organization
-   * from the checkout, so it requires a matching repository.
+   * repository on that host, using the selected project's credentials. Without that context,
+   * require a matching repository, or an explicitly verified GitHub routing account. Azure
+   * derives its organization from the checkout, so it requires a matching repository.
    */
-  const requireProject = (ref: PullRequestRef): Effect.Effect<SupportedProject, PullRequestError> =>
+  const resolveProject = (ref: PullRequestRef): Effect.Effect<SupportedProject, PullRequestError> =>
     listWorkspaceProjects({ projectId: ref.projectId }).pipe(
       Effect.flatMap(({ supported }): Effect.Effect<SupportedProject, PullRequestError> => {
         const own = supported[0];
@@ -888,48 +891,102 @@ export const make = Effect.gen(function* () {
             }),
           );
         }
+        if (own !== undefined && own.host === host && own.api.kind !== "azure-devops") {
+          return Effect.succeed({
+            ...own,
+            repository,
+            remote: normalizeGitRemoteUrl(`https://${host}/${repository}`),
+          });
+        }
         const repositoryKey = canonicalRepositoryKey(`${host}/${repository}`.toLowerCase());
         // Azure SSH and legacy clone hosts differ from the browser URL's host. Compare
         // the complete repository identity before narrowing those checkouts by host.
         return listWorkspaceProjects(
           repositoryKey.startsWith("dev.azure.com/") ? {} : { host },
+          false,
         ).pipe(
-          Effect.flatMap(({ supported }) => {
-            const onHost = supported.filter((candidate) => candidate.host === host);
-            const route =
-              supported.find(
-                (candidate) =>
-                  candidate.api.kind === "azure-devops" &&
-                  candidate.project.repositoryIdentity != null &&
-                  canonicalRepositoryKey(
-                    candidate.project.repositoryIdentity.canonicalKey.toLowerCase(),
-                  ) === repositoryKey,
-              ) ??
-              onHost.find(
-                (candidate) =>
-                  candidate.api.kind !== "azure-devops" &&
-                  candidate.repository.toLowerCase() === repository.toLowerCase(),
-              ) ??
-              onHost.find((candidate) => candidate.api.kind !== "azure-devops");
-            if (route === undefined) {
-              return Effect.fail(
-                new PullRequestUnavailableError({ reason: "provider-unsupported" }),
-              );
-            }
-            return Effect.succeed(
-              route.api.kind === "azure-devops" ||
-                route.repository.toLowerCase() === repository.toLowerCase()
+          Effect.flatMap(({ supported }) =>
+            Effect.gen(function* () {
+              const onHost = supported.filter((candidate) => candidate.host === host);
+              let route =
+                supported.find(
+                  (candidate) =>
+                    candidate.api.kind === "azure-devops" &&
+                    candidate.project.repositoryIdentity != null &&
+                    canonicalRepositoryKey(
+                      candidate.project.repositoryIdentity.canonicalKey.toLowerCase(),
+                    ) === repositoryKey,
+                ) ??
+                onHost.find(
+                  (candidate) =>
+                    candidate.api.kind !== "azure-devops" &&
+                    candidate.repository.toLowerCase() === repository.toLowerCase(),
+                );
+              // A routed request carries a foreign project ID. A same-host checkout can
+              // serve it only when its account matches; the credential guard verifies it
+              // again and pins the credential before the operation starts.
+              if (ref.expectedAccountId !== undefined) {
+                const candidates =
+                  route === undefined
+                    ? onHost
+                    : [route, ...onHost.filter((candidate) => candidate !== route)];
+                route = undefined;
+                for (const candidate of candidates) {
+                  if (
+                    candidate.api.kind !== "github" ||
+                    candidate.api.getRoutingIdentity === undefined
+                  )
+                    continue;
+                  const identity = yield* candidate.api
+                    .getRoutingIdentity({
+                      cwd: candidate.project.workspaceRoot,
+                      host,
+                    })
+                    .pipe(Effect.option);
+                  if (
+                    identity._tag === "Some" &&
+                    identity.value.accountId === ref.expectedAccountId
+                  ) {
+                    route = candidate;
+                    break;
+                  }
+                }
+              }
+              if (route === undefined) {
+                return yield* new PullRequestUnavailableError({ reason: "provider-unsupported" });
+              }
+              return route.api.kind === "azure-devops"
                 ? route
                 : {
                     ...route,
                     repository,
                     remote: normalizeGitRemoteUrl(`https://${host}/${repository}`),
-                  },
-            );
-          }),
+                  };
+            }),
+          ),
         );
       }),
     );
+
+  const requireProject = Effect.fn("PullRequestService.requireProject")(function* (
+    ref: PullRequestRef,
+  ) {
+    const credential = yield* routingCredential;
+    if (
+      credential !== null &&
+      ref.expectedAccountId === credential.accountId &&
+      ref.host?.trim().toLowerCase() === credential.project.host
+    ) {
+      return {
+        ...credential.project,
+        repository: ref.repository.trim(),
+        remote: normalizeGitRemoteUrl(
+          `https://${credential.project.host}/${ref.repository.trim()}`,
+        ),
+      };
+    }
+    return yield* resolveProject(ref);
+  });
 
   const canonicalRef = Effect.fn("PullRequestService.canonicalRef")(function* <
     I extends PullRequestRef,
@@ -1575,7 +1632,10 @@ export const make = Effect.gen(function* () {
           { cwd: project.project.workspaceRoot, host: project.host },
           (identity) =>
             identity.accountId === input.expectedAccountId
-              ? operation.pipe(Effect.provideService(routingCredential, identity), Effect.result)
+              ? operation.pipe(
+                  Effect.provideService(routingCredential, { ...identity, project }),
+                  Effect.result,
+                )
               : Effect.fail(rejected()),
         )
         .pipe(Effect.catchTags({ PullRequestProviderError: () => Effect.fail(rejected()) }));

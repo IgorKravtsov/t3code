@@ -208,8 +208,9 @@ A watched thread counts as working between wakes, so it stays in the **Working**
 not auto-settle. Agents stop watching when they hand the work back to you, and the thread then
 returns to your inbox.
 
-Cross-repository links use a project on the same host. Azure DevOps reviews require a project checked
-out from the matching organization and repository.
+Cross-repository links use the selected project's credentials when its checkout is on the same host.
+Links to another host require a checkout of the matching repository. Azure DevOps reviews require a
+project checked out from the matching organization and repository.
 
 ## GitHub stacks
 

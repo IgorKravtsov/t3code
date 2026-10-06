@@ -89,10 +89,13 @@ function buildRepositoryIdentity(input: {
   readonly remoteName: string;
   readonly remoteUrl: string;
   readonly originUrl: string | undefined;
+  readonly identityRemoteUrl: string;
   readonly rootPath: string;
 }): RepositoryIdentity {
-  const canonicalKey = normalizeGitRemoteUrl(input.remoteUrl);
-  const sourceControlProvider = detectSourceControlProviderFromGitRemoteUrl(input.remoteUrl);
+  const canonicalKey = normalizeGitRemoteUrl(input.identityRemoteUrl);
+  const sourceControlProvider = detectSourceControlProviderFromGitRemoteUrl(
+    input.identityRemoteUrl,
+  );
   const repositoryPath = repositoryPathOf(canonicalKey);
   const repositoryPathSegments = repositoryPath.split("/").filter((segment) => segment.length > 0);
   const [owner] = repositoryPathSegments;
@@ -114,6 +117,57 @@ function buildRepositoryIdentity(input: {
     ...(origin ? { origin } : {}),
   };
 }
+
+function parseSshRemote(remoteUrl: string) {
+  const trimmed = remoteUrl.trim();
+  if (trimmed.toLowerCase().startsWith("ssh://")) {
+    try {
+      const url = new URL(trimmed);
+      return {
+        hostname: url.hostname,
+        username: decodeURIComponent(url.username),
+        port: url.port,
+        path: url.pathname.replace(/^\//, ""),
+      };
+    } catch {
+      return null;
+    }
+  }
+  if (trimmed.includes("://") || /^[a-z]:[\\/]/i.test(trimmed)) return null;
+  const match = /^(?:([a-zA-Z0-9._-]+)@)?([^:/\s]+):(.+)$/.exec(trimmed);
+  return match?.[2] && match[3]
+    ? { hostname: match[2], username: match[1] ?? "", port: "", path: match[3] }
+    : null;
+}
+
+// Ask OpenSSH to evaluate Host, Include and Match itself. Only identity uses the
+// effective hostname; Git must keep the alias that selects its key and SSH options.
+const resolveIdentityRemoteUrl = Effect.fn("RepositoryIdentityResolver.resolveIdentityRemoteUrl")(
+  function* (cwd: string, remoteUrl: string) {
+    const remote = parseSshRemote(remoteUrl);
+    if (remote === null) return remoteUrl;
+    const processRunner = yield* ProcessRunner.ProcessRunner;
+    const result = yield* processRunner
+      .run({
+        command: "ssh",
+        args: [
+          "-G",
+          ...(remote.username ? ["-l", remote.username] : []),
+          ...(remote.port ? ["-p", remote.port] : []),
+          "--",
+          remote.hostname,
+        ],
+        cwd,
+        timeout: Duration.seconds(5),
+        timeoutBehavior: "timedOutResult",
+      })
+      .pipe(Effect.option);
+    if (result._tag === "None" || result.value.code !== 0 || result.value.timedOut)
+      return remoteUrl;
+    const hostname = /^hostname\s+(\S+)\s*$/im.exec(result.value.stdout)?.[1];
+    return hostname ? `ssh://${hostname}/${remote.path}` : remoteUrl;
+  },
+);
 
 const resolveRepositoryIdentityCacheKey = Effect.fn("RepositoryIdentityResolver.resolveCacheKey")(
   function* (cwd: string) {
@@ -156,9 +210,16 @@ const resolveRepositoryIdentityFromCacheKey = Effect.fn(
 
   const remotes = parseRemoteFetchUrls(remoteResult.value.stdout);
   const remote = pickPrimaryRemote(remotes);
-  return remote
-    ? buildRepositoryIdentity({ ...remote, originUrl: remotes.get("origin"), rootPath: cacheKey })
-    : null;
+  if (remote === null) return null;
+  const identityRemoteUrl = yield* resolveIdentityRemoteUrl(cacheKey, remote.remoteUrl);
+  const origin = remotes.get("origin");
+  const originUrl =
+    origin === remote.remoteUrl
+      ? identityRemoteUrl
+      : origin === undefined
+        ? undefined
+        : yield* resolveIdentityRemoteUrl(cacheKey, origin);
+  return buildRepositoryIdentity({ ...remote, identityRemoteUrl, originUrl, rootPath: cacheKey });
 });
 
 export const make = Effect.fn("RepositoryIdentityResolver.make")(function* (

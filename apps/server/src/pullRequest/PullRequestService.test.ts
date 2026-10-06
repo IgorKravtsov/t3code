@@ -27,6 +27,7 @@ import { PullRequestOperationError } from "@t3tools/contracts";
 import * as ProjectService from "../project/ProjectService.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
 import * as PullRequestFilesViewed from "../persistence/PullRequestFilesViewed.ts";
+import * as ProcessRunner from "../processRunner.ts";
 import * as RepositoryIdentityResolver from "../project/RepositoryIdentityResolver.ts";
 import * as SourceControlProviderRegistry from "../sourceControl/SourceControlProviderRegistry.ts";
 import * as SourceControlRateLimit from "../sourceControl/SourceControlRateLimit.ts";
@@ -2289,6 +2290,266 @@ it.effect("resolves a project's repository identity when its shell has none cach
 
     assert.strictEqual(summary.number, 7);
   }),
+);
+
+it.effect(
+  "keeps an SSH alias linked PR in its project's account with Aurum before or after UI",
+  () =>
+    Effect.gen(function* () {
+      const resolver = yield* RepositoryIdentityResolver.make().pipe(
+        Effect.provideService(ProcessRunner.ProcessRunner, {
+          run: (input) =>
+            Effect.succeed({
+              stdout:
+                input.command === "ssh"
+                  ? "hostname github.com\nuser git\n"
+                  : input.args.includes("rev-parse")
+                    ? "/UI\n"
+                    : "origin\tgit@github-illumify:ToneMeUp/UI.git (fetch)\n",
+              stderr: "",
+              code: ChildProcessSpawner.ExitCode(0),
+              timedOut: false,
+              stdoutTruncated: false,
+              stderrTruncated: false,
+              stdoutInvalidUtf8: false,
+              stderrInvalidUtf8: false,
+            }),
+        }),
+      );
+      const identity = yield* resolver.resolve("/UI");
+      const ui = {
+        ...project({ id: "ui", title: "UI", workspaceRoot: "/UI" }),
+        repositoryIdentity: identity,
+      };
+      const aurum = project({
+        id: "aurum",
+        title: "Aurum",
+        workspaceRoot: "/Aurum",
+        repository: "igorkravtsov/aurum",
+      });
+      for (const projects of [
+        [aurum, ui],
+        [ui, aurum],
+      ]) {
+        const calls: string[] = [];
+        const service = yield* makeService({
+          projects,
+          resolveHandle: ({ context }) =>
+            Effect.succeed({ context: context!, provider: undefined as never }),
+          providers: [
+            fakeProvider("github", {
+              getViewer: ({ cwd }) => Effect.succeed(cwd === "/UI" ? "KravIhor" : "IgorKravtsov"),
+              getChangeRequest: ({ cwd, repository, host }) =>
+                Effect.sync(() => {
+                  calls.push(cwd);
+                  assert.strictEqual(repository, "tonemeup/ui");
+                  assert.strictEqual(host, "github.com");
+                  assert.strictEqual(cwd, "/UI");
+                  return {
+                    ...hostedChangeRequest("merged UI PR"),
+                    number: 12144,
+                    state: "merged" as const,
+                  };
+                }),
+            }),
+          ],
+        });
+        const detail = yield* service.detail({
+          projectId: "ui" as ProjectId,
+          host: "github.com",
+          repository: "tonemeup/ui",
+          number: 12144,
+        });
+        assert.strictEqual(detail.viewer, "KravIhor");
+        assert.strictEqual(detail.state, "merged");
+        assert.deepStrictEqual(calls, ["/UI"]);
+      }
+    }),
+);
+
+it.effect(
+  "refuses an unrelated same-host checkout when the selected project is unsupported or missing",
+  () =>
+    Effect.gen(function* () {
+      for (const selected of ["missing", "ui"]) {
+        const service = yield* makeService({
+          projects: [
+            project({
+              id: "aurum",
+              title: "Aurum",
+              workspaceRoot: "/Aurum",
+              repository: "igorkravtsov/aurum",
+            }),
+            project({
+              id: "ui",
+              title: "UI",
+              workspaceRoot: "/UI",
+              repository: "tonemeup/ui",
+              provider: "unknown",
+              host: "unresolved-alias",
+            }),
+          ],
+          resolveHandle: ({ context }) =>
+            Effect.succeed({ context: context!, provider: undefined as never }),
+          providers: [
+            fakeProvider("github", {
+              getChangeRequest: () => Effect.die("must not use Aurum's account"),
+            }),
+          ],
+        });
+        const error = yield* Effect.flip(
+          service.detail({
+            projectId: selected as ProjectId,
+            host: "github.com",
+            repository: "tonemeup/ui",
+            number: 12144,
+          }),
+        );
+        assert.strictEqual(error._tag, "PullRequestUnavailableError");
+      }
+    }),
+);
+
+it.effect(
+  "keeps the selected account for a cross-repository PR even when another checkout matches",
+  () =>
+    Effect.gen(function* () {
+      const own = project({
+        id: "ui",
+        title: "UI",
+        workspaceRoot: "/UI",
+        repository: "tonemeup/ui",
+      });
+      const other = project({
+        id: "aurum",
+        title: "Aurum",
+        workspaceRoot: "/Aurum",
+        repository: "igorkravtsov/aurum",
+      });
+      for (const projects of [
+        [other, own],
+        [own, other],
+      ]) {
+        const service = yield* makeService({
+          projects,
+          providers: [
+            fakeProvider("github", {
+              getChangeRequestSummary: ({ cwd, repository }) => {
+                assert.strictEqual(cwd, "/UI");
+                assert.strictEqual(repository, "igorkravtsov/aurum");
+                return Effect.succeed(changeRequest(7, "2026-07-02T00:00:00Z"));
+              },
+            }),
+          ],
+        });
+        yield* service.summary(
+          {
+            projectId: "ui" as ProjectId,
+            host: "github.com",
+            repository: "igorkravtsov/aurum",
+            number: 7,
+          },
+          { recoverTransientFailure: false },
+        );
+      }
+    }),
+);
+
+it.effect(
+  "routes a foreign-environment reference only through its explicitly expected GitHub account",
+  () =>
+    Effect.gen(function* () {
+      const aurum = project({
+        id: "aurum",
+        title: "Aurum",
+        workspaceRoot: "/Aurum",
+        repository: "igorkravtsov/aurum",
+      });
+      const ui = project({
+        id: "ui",
+        title: "UI",
+        workspaceRoot: "/UI",
+        repository: "tonemeup/ui",
+      });
+      const identity = (cwd: string) => ({
+        accountId: cwd === "/UI" ? "ui-account" : "aurum-account",
+        viewer: cwd === "/UI" ? "KravIhor" : "IgorKravtsov",
+      });
+      for (const projects of [
+        [aurum, ui],
+        [ui, aurum],
+      ]) {
+        let pinned = false;
+        const service = yield* makeService({
+          projects,
+          providers: [
+            fakeProvider("github", {
+              getRoutingIdentity: ({ cwd }) => {
+                assert.isFalse(pinned, "keep the checkout selected before pinning the credential");
+                return Effect.succeed(identity(cwd));
+              },
+              withVerifiedCredential: (input, use) =>
+                Effect.suspend(() => {
+                  pinned = true;
+                  return use({ ...identity(input.cwd), credentialFingerprint: input.cwd }).pipe(
+                    Effect.ensuring(
+                      Effect.sync(() => {
+                        pinned = false;
+                      }),
+                    ),
+                  );
+                }),
+              getChangeRequestSummary: ({ cwd, repository }) => {
+                assert.strictEqual(cwd, "/UI");
+                assert.strictEqual(repository, "tonemeup/other-repo");
+                return Effect.succeed(changeRequest(7, "2026-07-02T00:00:00Z"));
+              },
+            }),
+          ],
+        });
+        const ref = {
+          projectId: "foreign-project" as ProjectId,
+          host: "github.com",
+          repository: "tonemeup/other-repo",
+          number: 7,
+          expectedAccountId: "ui-account",
+        };
+        yield* service.withRoutingCredential(
+          ref,
+          service.summary(ref, { recoverTransientFailure: false }),
+        );
+        // A checkout of the target repository can still use another account. Its
+        // repository match must not override the routed request's account boundary.
+        const exactOnWrongAccount = { ...aurum, repositoryIdentity: ui.repositoryIdentity };
+        const exactService = yield* makeService({
+          projects: [exactOnWrongAccount, ui],
+          providers: [
+            fakeProvider("github", {
+              getRoutingIdentity: ({ cwd }) => Effect.succeed(identity(cwd)),
+              withVerifiedCredential: (input, use) =>
+                use({ ...identity(input.cwd), credentialFingerprint: input.cwd }),
+              getChangeRequestSummary: ({ cwd }) => {
+                assert.strictEqual(cwd, "/UI");
+                return Effect.succeed(changeRequest(7, "2026-07-02T00:00:00Z"));
+              },
+            }),
+          ],
+        });
+        const exactRef = { ...ref, repository: "tonemeup/ui" };
+        yield* exactService.withRoutingCredential(
+          exactRef,
+          exactService.summary(exactRef, { recoverTransientFailure: false }),
+        );
+        const missing = { ...ref, expectedAccountId: "absent-account" };
+        const error = yield* Effect.flip(
+          service.withRoutingCredential(
+            missing,
+            service.summary(missing, { recoverTransientFailure: false }),
+          ),
+        );
+        assert.strictEqual(error._tag, "PullRequestOperationError");
+      }
+    }),
 );
 
 it.effect("routes a hosted reference to another repository through a project on that host", () =>

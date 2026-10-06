@@ -39,6 +39,149 @@ const layerRepositoryIdentityResolverTest = (options: {
   ).pipe(Layer.provide(ProcessRunner.layer));
 
 it.layer(NodeServices.layer)("RepositoryIdentityResolverLive", (it) => {
+  it.effect("lets OpenSSH evaluate Include and Match user with an isolated configuration", () =>
+    Effect.gen(function* () {
+      const fileSystem = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const cwd = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3-ssh-identity-" });
+      const configPath = path.join(cwd, "ssh_config");
+      const includedPath = path.join(cwd, "accounts.conf");
+      yield* fileSystem.writeFileString(
+        configPath,
+        `Include "${normalizePathSeparators(includedPath)}"\n`,
+      );
+      yield* fileSystem.writeFileString(
+        includedPath,
+        "Match originalhost tenant-alias user git\n  HostName github.com\nHost *\n  HostName gitlab.com\n",
+      );
+      yield* git(cwd, ["init"]);
+      const runner = yield* ProcessRunner.ProcessRunner.pipe(Effect.provide(ProcessRunner.layer));
+      const resolver = yield* RepositoryIdentityResolver.make().pipe(
+        Effect.provideService(ProcessRunner.ProcessRunner, {
+          run: (input) =>
+            runner.run(
+              input.command === "ssh"
+                ? { ...input, args: ["-F", configPath, ...input.args] }
+                : input,
+            ),
+        }),
+      );
+      yield* git(cwd, ["remote", "add", "origin", "git@tenant-alias:Team/Repo.git"]);
+      const github = yield* resolver.resolve(cwd);
+      expect(github?.canonicalKey).toBe("github.com/team/repo");
+      expect(github?.provider).toBe("github");
+      expect(github?.locator.remoteUrl).toBe("git@tenant-alias:Team/Repo.git");
+      yield* git(cwd, [
+        "remote",
+        "set-url",
+        "origin",
+        "ssh://other@tenant-alias:2222/Team/Repo.git",
+      ]);
+      const gitlab = yield* resolver.resolve(cwd, { refresh: true });
+      expect(gitlab?.canonicalKey).toBe("gitlab.com/team/repo");
+      expect(gitlab?.provider).toBe("gitlab");
+      yield* git(cwd, ["remote", "add", "upstream", "git@tenant-alias:Upstream/Repo.git"]);
+      const fork = yield* resolver.resolve(cwd, { refresh: true });
+      expect(fork?.canonicalKey).toBe("github.com/upstream/repo");
+      expect(fork?.origin).toEqual({
+        canonicalKey: "gitlab.com/team/repo",
+        displayName: "team/repo",
+      });
+      expect(fork?.locator.remoteUrl).toBe("git@tenant-alias:Upstream/Repo.git");
+    }),
+  );
+
+  it.effect.each(["unavailable", "failed", "timed-out", "malformed"] as const)(
+    "keeps the original identity when SSH configuration resolution is %s",
+    (failure) =>
+      Effect.gen(function* () {
+        const remoteUrl = "git@unresolved-alias:Team/Repo.git";
+        const resolver = yield* RepositoryIdentityResolver.make().pipe(
+          Effect.provideService(ProcessRunner.ProcessRunner, {
+            run: (input) => {
+              if (input.command === "ssh" && failure === "unavailable")
+                return Effect.fail(
+                  new ProcessRunner.ProcessSpawnError({
+                    command: "ssh",
+                    argumentCount: input.args.length,
+                    cause: "missing executable",
+                  }),
+                );
+              return Effect.succeed({
+                stdout:
+                  input.command === "ssh"
+                    ? "not a configuration\n"
+                    : input.args.includes("rev-parse")
+                      ? "/repo\n"
+                      : `origin\t${remoteUrl} (fetch)\n`,
+                stderr: "",
+                code: ChildProcessSpawner.ExitCode(
+                  input.command === "ssh" && failure !== "malformed" ? 1 : 0,
+                ),
+                timedOut: input.command === "ssh" && failure === "timed-out",
+                stdoutTruncated: false,
+                stderrTruncated: false,
+                stdoutInvalidUtf8: false,
+                stderrInvalidUtf8: false,
+              });
+            },
+          }),
+        );
+        const identity = yield* resolver.resolve("/repo");
+        expect(identity?.canonicalKey).toBe("unresolved-alias/team/repo");
+        expect(identity?.provider).toBe("unknown");
+        expect(identity?.locator.remoteUrl).toBe(remoteUrl);
+      }),
+  );
+
+  it.effect.each([
+    {
+      remoteUrl: "git@work-account:ToneMeUp/UI.git",
+      args: ["-G", "-l", "git", "--", "work-account"],
+    },
+    {
+      remoteUrl: "ssh://git@work-account:2222/ToneMeUp/UI.git",
+      args: ["-G", "-l", "git", "-p", "2222", "--", "work-account"],
+    },
+    { remoteUrl: "work-account:ToneMeUp/UI.git", args: ["-G", "--", "work-account"] },
+  ])(
+    "resolves the effective SSH hostname for $remoteUrl without rewriting the Git locator",
+    ({ remoteUrl, args }) =>
+      Effect.gen(function* () {
+        const calls: ProcessRunner.ProcessRunInput[] = [];
+        const resolver = yield* RepositoryIdentityResolver.make().pipe(
+          Effect.provideService(ProcessRunner.ProcessRunner, {
+            run: (input) =>
+              Effect.sync(() => {
+                calls.push(input);
+                return {
+                  stdout:
+                    input.command === "ssh"
+                      ? "host work-account\nhostname github.com\nuser git\n"
+                      : input.args.includes("rev-parse")
+                        ? "/UI\n"
+                        : `origin\t${remoteUrl} (fetch)\n`,
+                  stderr: "",
+                  code: ChildProcessSpawner.ExitCode(0),
+                  timedOut: false,
+                  stdoutTruncated: false,
+                  stderrTruncated: false,
+                  stdoutInvalidUtf8: false,
+                  stderrInvalidUtf8: false,
+                };
+              }),
+          }),
+        );
+        const identity = yield* resolver.resolve("/UI");
+        expect(identity?.canonicalKey).toBe("github.com/tonemeup/ui");
+        expect(identity?.provider).toBe("github");
+        expect(identity?.locator.remoteUrl).toBe(remoteUrl);
+        expect(calls.find((call) => call.command === "ssh")).toMatchObject({ cwd: "/UI", args });
+        expect(yield* resolver.resolve("/UI")).toEqual(identity);
+        expect(calls.filter((call) => call.command === "ssh")).toHaveLength(1);
+      }),
+  );
+
   it.effect("refreshes the Git root only when requested", () => {
     const calls: Array<ReadonlyArray<string>> = [];
     let rootPath = "/repo";
@@ -50,9 +193,12 @@ it.layer(NodeServices.layer)("RepositoryIdentityResolverLive", (it) => {
         Effect.sync(() => {
           calls.push(input.args);
           return {
-            stdout: input.args.includes("rev-parse")
-              ? `${rootPath}\n`
-              : `origin\t${remoteUrl} (fetch)\n`,
+            stdout:
+              input.command === "ssh"
+                ? `hostname ${input.args.at(-1)}\n`
+                : input.args.includes("rev-parse")
+                  ? `${rootPath}\n`
+                  : `origin\t${remoteUrl} (fetch)\n`,
             stderr: "",
             code: ChildProcessSpawner.ExitCode(0),
             timedOut: false,
@@ -104,14 +250,16 @@ it.layer(NodeServices.layer)("RepositoryIdentityResolverLive", (it) => {
       expect(calls).toEqual([
         ["-C", "/repo/packages/web", "rev-parse", "--show-toplevel"],
         ["-C", "/repo", "remote", "-v"],
+        ["-G", "-l", "git", "--", "github.com"],
       ]);
 
       const refreshed = yield* resolver.resolve("/repo/packages/web", { refresh: true });
       expect(refreshed?.rootPath).toBe("/repo/packages/web");
       expect(yield* resolver.resolve("/repo/packages/web")).toEqual(refreshed);
-      expect(calls.slice(2)).toEqual([
+      expect(calls.slice(3)).toEqual([
         ["-C", "/repo/packages/web", "rev-parse", "--show-toplevel"],
         ["-C", "/repo/packages/web", "remote", "-v"],
+        ["-G", "-l", "git", "--", "github.com"],
       ]);
       remoteUrl = "git@ssh.forge.test:team/repo.git";
       const forgejo = yield* resolver.resolve(rootPath, { refresh: true });
@@ -138,11 +286,14 @@ it.layer(NodeServices.layer)("RepositoryIdentityResolverLive", (it) => {
           const rootLookup = input.args.includes("rev-parse");
           const failed = rootLookup && rootAttempts++ === 0;
           return {
-            stdout: rootLookup
-              ? failed
-                ? ""
-                : "/repo\n"
-              : "origin\tgit@github.com:T3Tools/t3code.git (fetch)\n",
+            stdout:
+              input.command === "ssh"
+                ? "hostname github.com\n"
+                : rootLookup
+                  ? failed
+                    ? ""
+                    : "/repo\n"
+                  : "origin\tgit@github.com:T3Tools/t3code.git (fetch)\n",
             stderr: failed ? "temporary Git failure" : "",
             code: ChildProcessSpawner.ExitCode(failed ? 1 : 0),
             timedOut: false,
@@ -170,6 +321,7 @@ it.layer(NodeServices.layer)("RepositoryIdentityResolverLive", (it) => {
         ["-C", "/repo/packages/web", "rev-parse", "--show-toplevel"],
         ["-C", "/repo/packages/web", "rev-parse", "--show-toplevel"],
         ["-C", "/repo", "remote", "-v"],
+        ["-G", "-l", "git", "--", "github.com"],
       ]);
     }).pipe(Effect.provide(Layer.merge(TestClock.layer(), layerResolver)));
   });
