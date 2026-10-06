@@ -177,11 +177,17 @@ export const make = Effect.gen(function* () {
     now: number,
   ) {
     if (!anyWorktreePolicy(serverSettings, worktreeCleanupEnabled)) return;
+    const snapshot = yield* readThreads();
+    const projectRoots = yield* projectStore.list({ includeDeleted: true });
     const roots: Array<string> = [];
     for (const directory of managedWorktreesDirectories(
       serverSettings,
       config.worktreesDir,
       path,
+      projectRoots.map((project) => ({
+        id: project.projectId,
+        workspaceRoot: project.workspaceRoot,
+      })),
     )) {
       // An unmounted drive only skips its own worktrees.
       const root = yield* fs.exists(directory).pipe(
@@ -210,7 +216,6 @@ export const make = Effect.gen(function* () {
         thread.branch !== null &&
         resolveWorktreeCleanup(serverSettings, thread.projectId).worktreeOnDelete,
     );
-    const snapshot = yield* readThreads();
     const refreshedDefaultRefs = new Map<string, Set<string>>();
     const groups = Map.groupBy(
       snapshot.threads.filter((thread) => thread.worktreePath !== null),

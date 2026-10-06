@@ -2,6 +2,7 @@ import type { VcsStatusRemoteResult, VcsStatusResult } from "@t3tools/contracts"
 import { describe, expect, it } from "vite-plus/test";
 
 import {
+  resolveDefaultWorktreeBaseBranch,
   applyGitStatusStreamEvent,
   formatGeneratedBranchName,
   buildTemporaryWorktreeBranchName,
@@ -339,5 +340,19 @@ describe("formatGeneratedBranchName", () => {
         instructions: "",
       }),
     ).toBe(branch);
+  });
+});
+
+describe("default worktree base branch", () => {
+  const refs = [{ name: "main", isDefault: true }];
+  it("keeps an explicit remote ref even when it is outside the loaded refs page", () => {
+    expect(resolveDefaultWorktreeBaseBranch("origin/GA", refs, "feature/current")).toBe(
+      "origin/GA",
+    );
+  });
+  it("falls back to the repository default, then the current branch", () => {
+    expect(resolveDefaultWorktreeBaseBranch("", refs, "feature/current")).toBe("main");
+    expect(resolveDefaultWorktreeBaseBranch("", [], "feature/current")).toBe("feature/current");
+    expect(resolveDefaultWorktreeBaseBranch("", [], null)).toBeNull();
   });
 });

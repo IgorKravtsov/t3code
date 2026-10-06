@@ -390,3 +390,43 @@ it("inherits branch naming defaults and applies project overrides independently"
   });
   expect(resolveProjectSettings(cleared, projectId).settings.branchNamingMode).toBe("static");
 });
+
+describe("worktree defaults", () => {
+  it("keeps each environment's project defaults separate and supports clearing overrides", () => {
+    const machineA = applyServerSettingsPatch(DEFAULT_SERVER_SETTINGS, {
+      defaultWorktreeBaseBranch: "main",
+      worktreesDirectory: "/machine-a/worktrees",
+      projectSettingsOverrides: {
+        [projectId]: { defaultWorktreeBaseBranch: "origin/GA", worktreesDirectory: "../worktrees" },
+      },
+    });
+    const machineB = applyServerSettingsPatch(DEFAULT_SERVER_SETTINGS, {
+      defaultWorktreeBaseBranch: "release",
+      worktreesDirectory: "/machine-b/worktrees",
+    });
+    expect(resolveProjectSettings(machineA, projectId).settings).toMatchObject({
+      defaultWorktreeBaseBranch: "origin/GA",
+      worktreesDirectory: "../worktrees",
+    });
+    expect(resolveProjectSettings(machineB, projectId).settings).toMatchObject({
+      defaultWorktreeBaseBranch: "release",
+      worktreesDirectory: "/machine-b/worktrees",
+    });
+    expect(
+      resolveProjectSettings(machineA, otherProjectId).settings.defaultWorktreeBaseBranch,
+    ).toBe("main");
+    const cleared = clearProjectSettingsOverrides(machineA, projectId, [
+      "defaultWorktreeBaseBranch",
+      "worktreesDirectory",
+    ]);
+    expect(
+      resolveProjectSettings(
+        { ...machineA, projectSettingsOverrides: cleared === null ? {} : { [projectId]: cleared } },
+        projectId,
+      ).settings,
+    ).toMatchObject({
+      defaultWorktreeBaseBranch: "main",
+      worktreesDirectory: "/machine-a/worktrees",
+    });
+  });
+});

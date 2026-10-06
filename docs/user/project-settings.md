@@ -123,12 +123,21 @@ itself, or **Skip** to leave them for a setup script. It resolves in the same or
 workspace default: a `"worktreeSubmodules"` value in the `t3.json` of the branch being checked out
 applies when the project and environment are both on **Inherit**.
 
-## Worktree location
+## New worktree defaults
 
-New worktrees go in the `worktrees` folder of the T3 home directory. To put them somewhere else,
-such as another drive, set **Settings → Storage → Worktree location** to an absolute path like
-`D:\worktrees` or `~/worktrees`. The setting is per machine. Existing worktrees stay where they
-are, and cleanup covers both the default folder and the custom one.
+Set **Default worktree base branch** in **Settings → General** to a ref such as `origin/GA`.
+Leave it empty to use the repository's default branch. A branch explicitly chosen for a new
+thread takes priority; pull request checkouts use the pull request's branch.
+
+New worktrees go in the `worktrees` folder of the T3 home directory. Change **Settings → Storage →
+Worktree location** to an absolute path such as `/data/worktrees`, `D:\worktrees` or `~/worktrees`,
+or a path relative to the project's root, such as `../worktrees`. For `/projects/UI`, that relative
+path puts new worktrees below `/projects/worktrees/UI`.
+
+Both settings support project overrides on each selected environment. On mobile, open
+**Settings → New threads** and use the filter to choose the project and machine. The phone edits
+that machine's settings. Existing worktrees stay where they are, and cleanup covers their previous
+locations too. Clear a project override to inherit the machine's default again.
 
 ## Storage cleanup
 

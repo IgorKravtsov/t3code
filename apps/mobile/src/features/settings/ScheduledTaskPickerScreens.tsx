@@ -1,3 +1,5 @@
+import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
+import { DEFAULT_SERVER_SETTINGS } from "@t3tools/contracts";
 import { useNavigation } from "@react-navigation/native";
 import * as Haptics from "expo-haptics";
 import { useMemo, useState } from "react";
@@ -102,6 +104,11 @@ export function ScheduledTaskBranchPickerRouteScreen() {
       (entry) =>
         entry.environmentId === editor?.environmentId && entry.id === editor.draft.projectId,
     ) ?? null;
+  const config = useEnvironmentServerConfig(editor?.environmentId ?? null);
+  const configuredBaseRef = resolveProjectSettings(
+    config?.settings ?? DEFAULT_SERVER_SETTINGS,
+    project?.id ?? null,
+  ).settings.defaultWorktreeBaseBranch;
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebouncedValue(query, 150);
   const branches = usePaginatedBranches({
@@ -120,7 +127,7 @@ export function ScheduledTaskBranchPickerRouteScreen() {
       title="Base branch"
       project={project}
       branches={visibleBranches}
-      selectedBranchName={editor.draft.baseRef}
+      selectedBranchName={editor.draft.baseRef || configuredBaseRef || "main"}
       query={query}
       onQueryChange={setQuery}
       loading={

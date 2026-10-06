@@ -3002,13 +3002,20 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
         assert.equal(created.worktree.path, expected);
         assert.equal(yield* fileSystem.exists(expected), true);
 
-        const error = yield* driver
-          .createWorktree(
-            { cwd, path: null, refName: initialBranch, newRefName: "feature/relative-dir" },
-            { worktreesDirectory: "relative/worktrees" },
-          )
-          .pipe(Effect.flip);
-        assert.match(error.detail, /must be an absolute folder on this machine/);
+        const relative = yield* driver.createWorktree(
+          { cwd, path: null, refName: initialBranch, newRefName: "feature/relative-dir" },
+          { worktreesDirectory: "../worktrees" },
+        );
+        assert.equal(
+          relative.worktree.path,
+          pathService.resolve(
+            cwd,
+            "../worktrees",
+            pathService.basename(cwd),
+            "feature-relative-dir",
+          ),
+        );
+        assert.equal(yield* fileSystem.exists(relative.worktree.path), true);
 
         const rootError = yield* driver
           .createWorktree(

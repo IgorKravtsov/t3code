@@ -1,3 +1,4 @@
+import { WorktreeDefaultsSettings } from "./components/WorktreeDefaultsSettings";
 import { useNavigation } from "@react-navigation/native";
 import { SettingsRow } from "./components/SettingsRow";
 import { ScreenScrollView as ScrollView } from "../../components/ScreenScrollView";
@@ -47,7 +48,13 @@ const PAGE_TITLES: Record<SettingsPage, string> = {
 };
 
 const PAGE_PROJECT_KEYS: Record<SettingsPage, readonly ProjectScopedServerSettingKey[]> = {
-  "new-threads": ["defaultThreadEnvMode", "worktreeSubmodules", "defaultRuntimeMode"],
+  "new-threads": [
+    "defaultThreadEnvMode",
+    "worktreeSubmodules",
+    "defaultRuntimeMode",
+    "defaultWorktreeBaseBranch",
+    "worktreesDirectory",
+  ],
   "source-control": [
     "defaultAutoPull",
     "removeAgentCreditsOnMerge",
@@ -250,6 +257,21 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
               ) : null}
               {props.page === "new-threads" ? (
                 <>
+                  {targets.every(
+                    (target) =>
+                      target.environment.serverConfig.environment.capabilities
+                        .projectWorktreeDefaults === true,
+                  ) ? (
+                    <WorktreeDefaultsSettings
+                      key={targets
+                        .map((target) => `${target.environment.environmentId}:${target.projectId}`)
+                        .join(",")}
+                      baseBranch={uniform("defaultWorktreeBaseBranch")}
+                      directory={uniform("worktreesDirectory")}
+                      disabled={disabled}
+                      onChange={write}
+                    />
+                  ) : null}
                   <SettingsSection
                     title="Default workspace"
                     trailing={

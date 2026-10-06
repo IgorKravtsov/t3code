@@ -29,8 +29,9 @@ import {
   useUpdateScopedSettings,
 } from "./useScopedSettings";
 
-function WorktreesDirectoryRow() {
-  const { connectedEnvironments, targets } = useSettingsScope();
+export function WorktreesDirectoryRow() {
+  const { connectedEnvironments, targets, scope } = useSettingsScope();
+  const isProjectScope = scope.kind === "project" || scope.kind === "checkout";
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
   const mixed = useScopedSettingsMixed(["worktreesDirectory"]);
@@ -38,17 +39,19 @@ function WorktreesDirectoryRow() {
   if (
     connectedEnvironments.some(
       (environment) =>
-        environment.serverConfig?.environment.capabilities.worktreesDirectory !== true,
+        environment.serverConfig?.environment.capabilities.worktreesDirectory !== true ||
+        (isProjectScope &&
+          environment.serverConfig?.environment.capabilities.projectWorktreeDefaults !== true),
     )
   )
     return null;
-  const scopeKey = targets.map((target) => target.environmentId).join(",");
+  const scopeKey = targets.map((target) => `${target.environmentId}:${target.projectId}`).join(",");
 
   return (
     <SettingsRow
       {...searchableSetting("storage-worktrees-location")}
       description={
-        "Folder where new worktrees are created, on any drive, such as D:\\worktrees or ~/worktrees. Existing worktrees stay where they are. Leave empty to use the T3 home folder."
+        "Folder where new worktrees are created, such as ../worktrees (relative to the project), /data/worktrees, D:\\worktrees or ~/worktrees. Existing worktrees stay where they are. Leave empty to use the T3 home folder."
       }
       serverScoped
       settingKeys={["worktreesDirectory"]}
@@ -214,7 +217,7 @@ export function StorageSettingsPanel() {
   return (
     <SettingsPageContainer>
       <SettingsSection id="storage-worktrees" title="Worktrees">
-        {!isProjectScope && <WorktreesDirectoryRow />}
+        <WorktreesDirectoryRow />
         {isProjectScope && (
           <SettingsRow
             title="Automatic worktree cleanup"

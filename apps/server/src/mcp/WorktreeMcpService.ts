@@ -1,3 +1,4 @@
+import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
 import {
   CommandId,
   MessageId,
@@ -121,11 +122,6 @@ const make = Effect.gen(function* () {
       ),
     );
 
-  const readDefaultStartFromOrigin = serverSettings.getSettings.pipe(
-    Effect.map((settings) => settings.newWorktreesStartFromOrigin),
-    asOperationFailed("Unable to read server settings"),
-  );
-
   const handoffIds = (scope: McpThreadInvocationScope) =>
     crypto.randomUUIDv4.pipe(
       Effect.map((uuid) => {
@@ -217,7 +213,11 @@ const make = Effect.gen(function* () {
       );
     }
 
-    let baseRef = input.baseRef;
+    const projectSettings = resolveProjectSettings(
+      yield* serverSettings.getSettings.pipe(asOperationFailed("Unable to read server settings")),
+      projection.thread.projectId,
+    ).settings;
+    let baseRef = input.baseRef ?? (projectSettings.defaultWorktreeBaseBranch || undefined);
     if (baseRef === undefined) {
       if (localStatus.refName === null) {
         return yield* failure(
@@ -228,7 +228,7 @@ const make = Effect.gen(function* () {
       baseRef = localStatus.refName;
     }
 
-    const startFromOrigin = input.startFromOrigin ?? (yield* readDefaultStartFromOrigin);
+    const startFromOrigin = input.startFromOrigin ?? projectSettings.newWorktreesStartFromOrigin;
 
     let worktreeBaseRef = baseRef;
     if (startFromOrigin) {
@@ -479,7 +479,10 @@ const make = Effect.gen(function* () {
       const projection = yield* loadThread(scope);
       const project = yield* loadProject(scope, projection.thread.projectId);
 
-      const defaultStartFromOrigin = yield* readDefaultStartFromOrigin;
+      const defaultStartFromOrigin = resolveProjectSettings(
+        yield* serverSettings.getSettings.pipe(asOperationFailed("Unable to read server settings")),
+        projection.thread.projectId,
+      ).settings.newWorktreesStartFromOrigin;
 
       const result: WorktreeMcpStatusResult = {
         attached: projection.thread.worktreePath !== null,

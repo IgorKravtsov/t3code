@@ -162,3 +162,44 @@ describe("mobile project settings scope", () => {
     ).toEqual([]);
   });
 });
+
+it("edits worktree defaults for one project's selected machine and can inherit again", () => {
+  const settings = { ...DEFAULT_SERVER_SETTINGS, worktreesDirectory: "/machine/worktrees" };
+  const targets = resolveMobileSettingsTargets(
+    [environment(firstId, settings)],
+    [{ environmentId: firstId, id: firstProject }],
+  );
+  const writes = planMobileScopedSettingsPatch(targets, true, {
+    defaultWorktreeBaseBranch: "origin/GA",
+    worktreesDirectory: "../worktrees",
+  });
+  expect(writes).toEqual([
+    {
+      environmentId: firstId,
+      patch: {
+        projectSettingsOverrides: {
+          [firstProject]: {
+            defaultWorktreeBaseBranch: "origin/GA",
+            worktreesDirectory: "../worktrees",
+          },
+        },
+      },
+    },
+  ]);
+  expect(settings.worktreesDirectory).toBe("/machine/worktrees");
+  const saved = resolveMobileSettingsTargets(
+    [
+      environment(firstId, {
+        ...settings,
+        projectSettingsOverrides: writes[0]!.patch
+          .projectSettingsOverrides as ServerSettings["projectSettingsOverrides"],
+      }),
+    ],
+    [{ environmentId: firstId, id: firstProject }],
+  );
+  expect(
+    planMobileScopedSettingsClear(saved, ["defaultWorktreeBaseBranch", "worktreesDirectory"]),
+  ).toEqual([
+    { environmentId: firstId, patch: { projectSettingsOverrides: { [firstProject]: null } } },
+  ]);
+});

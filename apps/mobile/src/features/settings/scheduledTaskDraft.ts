@@ -187,7 +187,7 @@ export function createDraft(
     modelSelectionIsExplicit: false,
     schedule: DEFAULT_SCHEDULE,
     workspace: "worktree",
-    baseRef: "main",
+    baseRef: "",
     checkoutPath: "",
     enabled: true,
     startFromOrigin: true,

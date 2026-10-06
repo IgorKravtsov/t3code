@@ -420,3 +420,12 @@ export function applyGitStatusStreamEvent(
       return mergeGitStatusParts(toLocalStatusPart(current), event.remote);
   }
 }
+
+/** The automatic base selection; an explicit ref need not be on the first refs page. */
+export function resolveDefaultWorktreeBaseBranch(
+  configured: string | undefined,
+  refs: ReadonlyArray<Pick<VcsRef, "name" | "isDefault">>,
+  currentBranch: string | null,
+): string | null {
+  return configured?.trim() || refs.find((ref) => ref.isDefault)?.name || currentBranch;
+}

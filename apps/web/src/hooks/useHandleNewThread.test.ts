@@ -7,6 +7,7 @@ const testState = vi.hoisted(() => {
   let targetSettings = {
     defaultThreadEnvMode: "local" as "local" | "worktree",
     newWorktreesStartFromOrigin: false,
+    defaultWorktreeBaseBranch: "",
     defaultModelSelection: null,
     defaultRuntimeMode: "full-access" as RuntimeMode,
   };
@@ -47,15 +48,21 @@ const testState = vi.hoisted(() => {
     },
     reset(
       nextStoredDraft: typeof storedDraft,
-      workspaceDefaults = {
+      workspaceDefaults: {
+        envMode: "local" | "worktree";
+        startFromOrigin: boolean;
+        baseBranch?: string;
+      } = {
         envMode: "local" as "local" | "worktree",
         startFromOrigin: false,
+        baseBranch: "",
       },
     ) {
       storedDraft = nextStoredDraft;
       targetSettings = {
         defaultThreadEnvMode: workspaceDefaults.envMode,
         newWorktreesStartFromOrigin: workspaceDefaults.startFromOrigin,
+        defaultWorktreeBaseBranch: workspaceDefaults.baseBranch ?? "",
         defaultModelSelection: null,
         defaultRuntimeMode: "full-access",
       };
@@ -231,6 +238,37 @@ describe.each([
     expect(testState.router.state.location.href).toBe("/usage");
     expect(testState.router.navigate).not.toHaveBeenCalled();
     expect(testState.draftStore.setLogicalProjectDraftThreadId).not.toHaveBeenCalled();
+  });
+
+  it("uses the configured base when opening a worktree draft and preserves an explicit branch", async () => {
+    testState.reset(draft, {
+      envMode: "worktree",
+      startFromOrigin: false,
+      baseBranch: "origin/GA",
+    });
+    const open = useNewThreadHandler();
+    const ref = { environmentId: "environment-ssh", projectId: "project-remote" } as never;
+    const pending = open(ref);
+    testState.completeProjectFileRead(null);
+    await pending;
+    expect(testState.draftStore.setLogicalProjectDraftThreadId).toHaveBeenCalledWith(
+      "remote-project",
+      ref,
+      expect.any(String),
+      expect.objectContaining({ branch: "origin/GA" }),
+    );
+    testState.reset(draft, {
+      envMode: "worktree",
+      startFromOrigin: false,
+      baseBranch: "origin/GA",
+    });
+    await open(ref, { envMode: "worktree", branch: "feature/explicit" });
+    expect(testState.draftStore.setLogicalProjectDraftThreadId).toHaveBeenCalledWith(
+      "remote-project",
+      ref,
+      expect.any(String),
+      expect.objectContaining({ branch: "feature/explicit" }),
+    );
   });
 
   it.each([true, false])(

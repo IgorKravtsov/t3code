@@ -1,3 +1,5 @@
+import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
+import { DEFAULT_SERVER_SETTINGS } from "@t3tools/contracts";
 import type {
   EnvironmentId,
   ProjectId,
@@ -579,6 +581,10 @@ function TaskForm({
   );
   const projects = useProjects().filter((project) => project.environmentId === environmentId);
   const config = useEnvironmentServerConfig(environmentId);
+  const configuredBaseRef = resolveProjectSettings(
+    config?.settings ?? DEFAULT_SERVER_SETTINGS,
+    draft.projectId,
+  ).settings.defaultWorktreeBaseBranch;
   const modelOptions = useMemo(() => buildModelOptions(config, null), [config]);
   const upsert = useAtomCommand(serverEnvironment.upsertScheduledTask, {
     label: "scheduled task upsert",
@@ -661,7 +667,7 @@ function TaskForm({
             ? { type: "existing_worktree", worktreePath: draft.checkoutPath.trim() }
             : {
                 type: "worktree",
-                baseRef: draft.baseRef.trim() || "main",
+                baseRef: draft.baseRef.trim() || configuredBaseRef || "main",
                 startFromOrigin: draft.startFromOrigin,
               },
       runtimeMode: draft.runtimeMode,
@@ -813,7 +819,7 @@ function TaskForm({
           <PickerRow
             label="Base branch"
             value={resolveNewTaskBranchLabel({
-              branchName: draft.baseRef,
+              branchName: draft.baseRef || configuredBaseRef || "main",
               startFromOrigin: draft.startFromOrigin,
               workspaceMode: "worktree",
             })}

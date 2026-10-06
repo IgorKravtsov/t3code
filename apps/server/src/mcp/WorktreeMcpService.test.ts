@@ -92,6 +92,7 @@ interface HarnessOptions {
   readonly currentBranch?: string | null;
   readonly notARepo?: boolean;
   readonly newWorktreesStartFromOrigin?: boolean;
+  readonly defaultWorktreeBaseBranch?: string;
   readonly setupScript?: "started" | "no-script" | "fails" | "dies";
   readonly dispatchFails?: boolean;
   readonly dispatchDies?: boolean;
@@ -317,6 +318,7 @@ const makeHarness = (options: HarnessOptions = {}) => {
         } satisfies Partial<ProjectService.ProjectService["Service"]>),
         ServerSettings.layerTest({
           newWorktreesStartFromOrigin: options.newWorktreesStartFromOrigin ?? false,
+          defaultWorktreeBaseBranch: options.defaultWorktreeBaseBranch ?? "",
         }),
         Layer.mock(GitWorkflowService.GitWorkflowService)({
           listRefs,
@@ -389,6 +391,23 @@ const runStatus = (harness: ReturnType<typeof makeHarness>) =>
   }).pipe(Effect.provide(harness.layer));
 
 describe("t3_worktree_handoff", () => {
+  it.effect("uses the configured remote base and preserves an explicit override", () => {
+    const harness = makeHarness({ defaultWorktreeBaseBranch: "origin/GA" });
+    return Effect.gen(function* () {
+      const result = yield* runHandoff(harness, { branch: "feature/default-base" });
+      expect(result.baseRef).toBe("origin/GA");
+      expect(harness.createWorktree).toHaveBeenCalledWith(
+        expect.objectContaining({ refName: "origin/GA", baseRefName: "origin/GA" }),
+      );
+      const explicit = makeHarness({ defaultWorktreeBaseBranch: "origin/GA" });
+      const overridden = yield* runHandoff(explicit, {
+        branch: "feature/explicit",
+        baseRef: "release",
+      });
+      expect(overridden.baseRef).toBe("release");
+    });
+  });
+
   it.effect("creates a worktree from the current branch and re-points the thread", () => {
     const harness = makeHarness();
     return Effect.gen(function* () {

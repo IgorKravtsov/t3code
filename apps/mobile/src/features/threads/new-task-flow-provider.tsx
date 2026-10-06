@@ -20,7 +20,7 @@ import {
   T3_PROJECT_FILE_NAME,
   ThreadId,
 } from "@t3tools/contracts";
-import { sanitizeNewRefName } from "@t3tools/shared/git";
+import { resolveDefaultWorktreeBaseBranch, sanitizeNewRefName } from "@t3tools/shared/git";
 import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
 import { parseT3ProjectFile } from "@t3tools/shared/t3ProjectFile";
 import * as Arr from "effect/Array";
@@ -883,8 +883,16 @@ export function NewTaskFlowProvider(props: React.PropsWithChildren) {
       updateComposerDraftSettings(selectedProjectDraftKey, {
         workspaceSelection: {
           mode,
-          branch: mode === "local" ? localSelection.branch : selectedBranchName,
-          worktreePath: mode === "local" ? localSelection.worktreePath : selectedWorktreePath,
+          branch:
+            mode === "local"
+              ? localSelection.branch
+              : projectSettings.settings.defaultWorktreeBaseBranch || selectedBranchName,
+          worktreePath:
+            mode === "local"
+              ? localSelection.worktreePath
+              : projectSettings.settings.defaultWorktreeBaseBranch
+                ? null
+                : selectedWorktreePath,
           ...(draftStartFromOrigin !== undefined ? { startFromOrigin: draftStartFromOrigin } : {}),
         },
       });
@@ -896,6 +904,7 @@ export function NewTaskFlowProvider(props: React.PropsWithChildren) {
       selectedProject,
       selectedProjectDraftKey,
       selectedWorktreePath,
+      projectSettings.settings.defaultWorktreeBaseBranch,
     ],
   );
 
@@ -998,19 +1007,30 @@ export function NewTaskFlowProvider(props: React.PropsWithChildren) {
     if (live && (live.mode !== "worktree" || live.branch !== null)) {
       return;
     }
-    // The default may only exist as origin/<default> (isRemote), which
-    // availableBranches filters out — search the unfiltered refs for it.
-    const preferredBranch =
-      allBranchRefs.find((branch) => branch.isDefault) ??
-      availableBranches.find((branch) => branch.current) ??
-      null;
-    if (preferredBranch) {
-      selectBranch(preferredBranch);
+    const branch = resolveDefaultWorktreeBaseBranch(
+      projectSettings.settings.defaultWorktreeBaseBranch,
+      allBranchRefs,
+      availableBranches.find((branch) => branch.current)?.name ?? null,
+    );
+    const ref = allBranchRefs.find((ref) => ref.name === branch);
+    if (!projectSettings.settings.defaultWorktreeBaseBranch && ref) {
+      selectBranch(ref);
+    } else if (branch) {
+      updateComposerDraftSettings(selectedProjectDraftKey, {
+        workspaceSelection: {
+          mode: "worktree",
+          branch,
+          worktreePath: null,
+          ...(draftStartFromOrigin !== undefined ? { startFromOrigin: draftStartFromOrigin } : {}),
+        },
+      });
     }
   }, [
     allBranchRefs,
     availableBranches,
     defaultWorkspaceModeSettled,
+    projectSettings.settings.defaultWorktreeBaseBranch,
+    draftStartFromOrigin,
     selectBranch,
     selectedBranchName,
     selectedProjectDraftKey,

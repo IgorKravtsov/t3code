@@ -1,3 +1,5 @@
+import { WorktreeBaseBranchSetting } from "./WorktreeBaseBranchSetting";
+import { WorktreesDirectoryRow } from "./StorageSettings";
 import {
   DEFAULT_SERVER_SETTINGS,
   type ModelSelection,
@@ -269,6 +271,8 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
         <>
           {modelRow}
           {workspaceRow}
+          <WorktreeBaseBranchSetting />
+          <WorktreesDirectoryRow />
         </>
       ) : category === "general" ? (
         <>
@@ -335,6 +339,7 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
             }
           />
           {workspaceRow}
+          <WorktreeBaseBranchSetting />
           <SettingsRow
             serverScoped
             settingKeys={["worktreeSubmodules"]}

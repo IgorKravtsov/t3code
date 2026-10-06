@@ -1129,6 +1129,8 @@ export const PROJECT_SCOPED_SERVER_SETTING_KEYS = [
   "defaultRuntimeMode",
   "defaultThreadEnvMode",
   "newWorktreesStartFromOrigin",
+  "defaultWorktreeBaseBranch",
+  "worktreesDirectory",
   "worktreeSubmodules",
   "defaultAutoPull",
   "defaultProjectScripts",
@@ -1159,6 +1161,8 @@ export const ProjectSettingsOverrides = Schema.Struct({
   defaultModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
   defaultRuntimeMode: Schema.optionalKey(RuntimeMode),
   defaultThreadEnvMode: Schema.optionalKey(ThreadEnvMode),
+  defaultWorktreeBaseBranch: Schema.optionalKey(TrimmedString),
+  worktreesDirectory: Schema.optionalKey(TrimmedString),
   newWorktreesStartFromOrigin: Schema.optionalKey(Schema.Boolean),
   worktreeSubmodules: ForwardCompatibleOptional(WorktreeSubmodules),
   defaultAutoPull: Schema.optionalKey(Schema.Boolean),
@@ -1217,8 +1221,10 @@ export const ServerSettings = Schema.Struct({
   storageCleanup: StorageCleanupSettings.pipe(
     Schema.withDecodingDefault(Effect.succeed(Schema.decodeSync(StorageCleanupSettings)({}))),
   ),
+  /** Base ref for automatic new-worktree selection. Empty uses the repository default. */
+  defaultWorktreeBaseBranch: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
   /**
-   * Absolute directory new worktrees are created under, e.g. `D:\worktrees`
+   * Directory new worktrees are created under (relative to the project root or absolute), e.g. `D:\worktrees`
    * or `~/worktrees`. Empty uses `<T3 home>/worktrees`.
    */
   worktreesDirectory: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
@@ -1632,6 +1638,7 @@ export const ServerSettingsPatch = Schema.Struct({
       logsAfterDays: Schema.optionalKey(StorageRetentionDays),
     }),
   ),
+  defaultWorktreeBaseBranch: Schema.optionalKey(TrimmedString),
   worktreesDirectory: Schema.optionalKey(TrimmedString),
   // Server settings
   responseStreamingMode: Schema.optionalKey(ResponseStreamingMode),

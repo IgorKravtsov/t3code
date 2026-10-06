@@ -769,6 +769,76 @@ const layerGitManagerTest = GitVcsDriver.layer.pipe(
 );
 
 it.layer(layerGitManagerTest)("GitManager", (it) => {
+  it.effect(
+    "creates worktrees under the project's relative location while explicit paths take priority",
+    () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const repoDir = NodePath.join(yield* makeTempDir("t3-project-worktrees-"), "UI");
+        yield* fs.makeDirectory(repoDir);
+        yield* initRepo(repoDir);
+        yield* runGit(repoDir, ["checkout", "-b", "GA"]);
+        yield* fs.writeFileString(NodePath.join(repoDir, "README.md"), "GA base\n");
+        yield* runGit(repoDir, ["commit", "-am", "GA base"]);
+        yield* runGit(repoDir, ["remote", "add", "origin", yield* createBareRemote()]);
+        yield* runGit(repoDir, ["push", "origin", "GA"]);
+        yield* runGit(repoDir, ["checkout", "main"]);
+        const projectId = ProjectId.make("worktree-defaults");
+        const occurredAt = "2026-10-06T00:00:00.000Z";
+        const { manager } = yield* makeManager({
+          serverSettings: {
+            worktreesDirectory: "/unused-environment-location",
+            projectSettingsOverrides: { [projectId]: { worktreesDirectory: "../worktrees" } },
+          },
+          seed: Effect.gen(function* () {
+            yield* (yield* ProjectStore.ProjectStoreV2).apply({
+              sequence: 1,
+              eventId: EventId.make("project-worktree-defaults"),
+              aggregateKind: "project",
+              aggregateId: projectId,
+              occurredAt,
+              commandId: null,
+              causationEventId: null,
+              correlationId: null,
+              metadata: {},
+              type: "project.created",
+              payload: {
+                projectId,
+                title: "UI",
+                workspaceRoot: repoDir,
+                defaultModelSelection: null,
+                scripts: [],
+                createdAt: occurredAt,
+                updatedAt: occurredAt,
+              },
+            });
+          }),
+        });
+        const result = yield* manager.createWorktree({
+          cwd: repoDir,
+          refName: "origin/GA",
+          newRefName: "feature/scoped",
+          path: null,
+        });
+        expect(result.worktree.path).toBe(
+          NodePath.resolve(repoDir, "../worktrees", NodePath.basename(repoDir), "feature-scoped"),
+        );
+        expect(yield* fs.readFileString(NodePath.join(result.worktree.path, "README.md"))).toBe(
+          "GA base\n",
+        );
+        const explicitPath = NodePath.join(yield* makeTempDir("t3-explicit-worktree-"), "checkout");
+        const explicit = yield* manager.createWorktree({
+          cwd: repoDir,
+          refName: "main",
+          newRefName: "feature/explicit",
+          path: explicitPath,
+        });
+        expect(explicit.worktree.path).toBe(explicitPath);
+        yield* runGit(repoDir, ["worktree", "remove", result.worktree.path]);
+        yield* runGit(repoDir, ["worktree", "remove", explicitPath]);
+      }),
+  );
+
   it.effect("status includes draft PR metadata when branch already has a draft PR", () =>
     Effect.gen(function* () {
       const repoDir = yield* makeTempDir("t3code-git-manager-");

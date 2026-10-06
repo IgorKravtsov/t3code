@@ -97,6 +97,44 @@ const recordProviderUsage = (provider: string, instanceId: string | null = provi
   });
 
 it.layer(NodeServices.layer)("server settings", (it) => {
+  it.effect(
+    "persists project worktree defaults and retains previous relative locations after reset",
+    () =>
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient;
+        const settings = yield* ServerSettingsModule.ServerSettingsService;
+        const config = yield* ServerConfig.ServerConfig;
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const projectId = ProjectId.make("worktree-project");
+        const root = path.join(config.baseDir, "projects", "UI");
+        yield* sql`INSERT INTO projection_projects (project_id, title, workspace_root, scripts_json, created_at, updated_at)
+        VALUES (${projectId}, ${"UI"}, ${root}, ${"[]"}, ${"2026-10-06T00:00:00Z"}, ${"2026-10-06T00:00:00Z"})`;
+        yield* settings.updateSettings({
+          projectSettingsOverrides: {
+            [projectId]: {
+              defaultWorktreeBaseBranch: "origin/GA",
+              worktreesDirectory: "../worktrees",
+            },
+          },
+        });
+        const persisted = yield* fs
+          .readFileString(config.settingsPath)
+          .pipe(Effect.flatMap(decodeServerSettingsJson));
+        assert.deepEqual(persisted.projectSettingsOverrides[projectId], {
+          defaultWorktreeBaseBranch: "origin/GA",
+          worktreesDirectory: "../worktrees",
+        });
+        const reset = yield* settings.updateSettings({
+          projectSettingsOverrides: { [projectId]: null },
+        });
+        assert.deepEqual(reset.projectSettingsOverrides, {});
+        assert.isTrue(
+          reset.previousWorktreesDirectories.includes(path.resolve(root, "../worktrees")),
+        );
+      }).pipe(Effect.provide(layerServerSettings())),
+  );
+
   it.effect("migrates saved token delivery to paragraph buffering without resetting settings", () =>
     Effect.gen(function* () {
       const config = yield* ServerConfig.ServerConfig;

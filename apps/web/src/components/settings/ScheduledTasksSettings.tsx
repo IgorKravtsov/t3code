@@ -1,3 +1,4 @@
+import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
 import { useAtomValue } from "@effect/atom-react";
 import {
   Clock3Icon,
@@ -123,7 +124,7 @@ const EMPTY_DRAFT: DraftState = {
   projectId: "",
   threadId: "",
   workspaceMode: "worktree",
-  baseRef: "main",
+  baseRef: "",
   startFromOrigin: true,
   existingWorktreePath: "",
   modelKey: "",
@@ -813,6 +814,8 @@ function ScheduledTaskEditorDialog({
     : task;
   const selectedProjectId = draft.projectId || projects[0]?.id || "";
   const selectedProject = projects.find((project) => project.id === selectedProjectId);
+  const configuredBaseRef = resolveProjectSettings(settings, selectedProject?.id ?? null).settings
+    .defaultWorktreeBaseBranch;
 
   // The real model picker is keyed by a `${instanceId}:${model}` string, which
   // is exactly how the draft stores its selection.
@@ -901,7 +904,7 @@ function ScheduledTaskEditorDialog({
           ? { type: "existing_worktree", worktreePath: draft.existingWorktreePath.trim() }
           : {
               type: "worktree",
-              baseRef: draft.baseRef.trim() || "main",
+              baseRef: draft.baseRef.trim() || configuredBaseRef || "main",
               startFromOrigin: draft.startFromOrigin,
             };
     const input: ScheduledTaskUpsertInput = {
@@ -967,7 +970,7 @@ function ScheduledTaskEditorDialog({
                     projectId: "",
                     modelKey: "",
                     baseModelSelection: null,
-                    baseRef: "main",
+                    baseRef: "",
                     startFromOrigin: true,
                     existingWorktreePath: "",
                   }));
@@ -1067,7 +1070,7 @@ function ScheduledTaskEditorDialog({
                   id="scheduled-task-base-ref"
                   environmentId={environmentId}
                   cwd={selectedProject?.workspaceRoot ?? null}
-                  value={draft.baseRef}
+                  value={draft.baseRef || configuredBaseRef || "main"}
                   onValueChange={(baseRef) => setDraft((current) => ({ ...current, baseRef }))}
                   startFromOrigin={draft.startFromOrigin}
                   onStartFromOriginChange={(startFromOrigin) =>

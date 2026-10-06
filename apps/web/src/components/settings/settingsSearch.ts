@@ -147,7 +147,7 @@ export const SETTINGS_SEARCH_ITEMS = [
     id: "storage-worktrees-location",
     title: "Worktree location",
     to: "/settings/storage",
-    scope: "environment-defaults",
+    scope: "project-defaults",
     searchTerms: ["worktree location folder directory path drive external disk"],
   },
   {
@@ -449,6 +449,13 @@ export const SETTINGS_SEARCH_ITEMS = [
     to: "/settings/general",
     scope: "project-defaults",
     searchTerms: ["default workspace mode draft local worktree"],
+  },
+  {
+    id: "worktree-base-branch",
+    title: "Default worktree base branch",
+    to: "/settings/general",
+    scope: "project-defaults",
+    searchTerms: ["worktree base branch ref origin default new threads"],
   },
   {
     id: "worktree-submodules",

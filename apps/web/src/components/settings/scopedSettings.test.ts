@@ -242,6 +242,28 @@ describe("scoped settings writes", () => {
     });
   });
 
+  it("keeps worktree defaults on the selected project and environment", () => {
+    const plan = planScopedSettingsPatch(checkout, [laptop, server], {
+      defaultWorktreeBaseBranch: "origin/GA",
+      worktreesDirectory: "../worktrees",
+    });
+    expect(plan.unavailableReason).toBeNull();
+    expect(plan.serverWrites).toEqual([
+      {
+        environmentId: server.environmentId,
+        label: server.label,
+        patch: {
+          projectSettingsOverrides: {
+            [projectId]: {
+              defaultWorktreeBaseBranch: "origin/GA",
+              worktreesDirectory: "../worktrees",
+            },
+          },
+        },
+      },
+    ]);
+  });
+
   it("writes project overrides into each member's entry on its environment", () => {
     const withExisting = environment("Server", {
       settings: {

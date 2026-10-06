@@ -721,7 +721,13 @@ export const make = Effect.gen(function* () {
     readonly threadId?: ThreadId | undefined;
   }) {
     const settings = yield* serverSettingsService.getSettings;
-    if (!hasProjectSettingsOverrides(settings)) return settings;
+    if (
+      !hasProjectSettingsOverrides(settings) &&
+      (settings.worktreesDirectory === "" ||
+        path.isAbsolute(settings.worktreesDirectory) ||
+        settings.worktreesDirectory.startsWith("~"))
+    )
+      return settings;
     const projectId: ProjectId | null = yield* input.threadId !== undefined
       ? threads.getThreadShell(input.threadId).pipe(
           Effect.map((thread) => thread?.projectId ?? null),
@@ -731,13 +737,37 @@ export const make = Effect.gen(function* () {
           Effect.map((project) => Option.getOrNull(project)?.projectId ?? null),
           Effect.orElseSucceed(() => null),
         );
-    return resolveProjectSettings(settings, projectId).settings;
+    const effective = resolveProjectSettings(settings, projectId).settings;
+    const directory = effective.worktreesDirectory;
+    if (
+      directory === "" ||
+      path.isAbsolute(directory) ||
+      directory.startsWith("~") ||
+      /^[a-z]:[\\/]/i.test(directory) ||
+      directory.startsWith("\\\\")
+    )
+      return effective;
+    const project =
+      projectId === null
+        ? null
+        : yield* projects.get(projectId).pipe(
+            Effect.map(Option.getOrNull),
+            Effect.orElseSucceed(() => null),
+          );
+    return {
+      ...effective,
+      worktreesDirectory: path.resolve(project?.workspaceRoot ?? input.cwd, directory),
+    };
   });
   // Best effort: a settings read failure falls back to the default location.
-  const readWorktreesDirectory = serverSettingsService.getSettings.pipe(
-    Effect.map((settings) => settings.worktreesDirectory),
-    Effect.orElseSucceed(() => ""),
-  );
+  const readWorktreesDirectory = (input: {
+    readonly cwd: string;
+    readonly threadId?: ThreadId | undefined;
+  }) =>
+    projectSettingsFor(input).pipe(
+      Effect.map((settings) => settings.worktreesDirectory),
+      Effect.orElseSucceed(() => ""),
+    );
   const createWorktree: GitManager["Service"]["createWorktree"] = Effect.fn(
     "GitManager.createWorktree",
   )(function* (input, options) {
@@ -748,7 +778,7 @@ export const make = Effect.gen(function* () {
             Effect.map((settings) => settings.worktreeSubmodules),
             Effect.orElseSucceed(() => null),
           );
-    const worktreesDirectory = yield* readWorktreesDirectory;
+    const worktreesDirectory = yield* readWorktreesDirectory(input);
     return yield* gitCore.createWorktree(input, { worktreesDirectory, ...options, submodules });
   });
 
@@ -2615,7 +2645,7 @@ export const make = Effect.gen(function* () {
           path: null,
         },
         {
-          worktreesDirectory: yield* readWorktreesDirectory,
+          worktreesDirectory: yield* readWorktreesDirectory(input),
           // Best effort: a settings read failure falls back to the checkout's t3.json.
           submodules: yield* projectSettingsFor(input).pipe(
             Effect.map((settings) => settings.worktreeSubmodules),

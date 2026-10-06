@@ -10,6 +10,7 @@
  *
  * @module ServerSettings
  */
+import { managedWorktreesDirectories } from "./worktreesDirectory.ts";
 import {
   DEFAULT_TEXT_GENERATION_MODEL,
   DEFAULT_TEXT_GENERATION_MODEL_BY_PROVIDER,
@@ -619,7 +620,7 @@ function foldLegacyProjectSettings(
 }
 
 const make = Effect.gen(function* () {
-  const { settingsPath } = yield* ServerConfig.ServerConfig;
+  const { settingsPath, worktreesDir } = yield* ServerConfig.ServerConfig;
   const fs = yield* FileSystem.FileSystem;
   const pathService = yield* Path.Path;
   const secretStore = yield* ServerSecretStore.ServerSecretStore;
@@ -1140,7 +1141,40 @@ const make = Effect.gen(function* () {
     writeSemaphore.withPermits(1)(
       Effect.gen(function* () {
         const current = yield* getSettingsFromCache;
-        const updated = yield* update(current);
+        let updated = yield* update(current);
+        if (
+          updated.worktreesDirectory !== current.worktreesDirectory ||
+          updated.projectSettingsOverrides !== current.projectSettingsOverrides
+        ) {
+          const projects = yield* sql<{ id: ProjectId; workspaceRoot: string }>`
+            SELECT project_id AS "id", workspace_root AS "workspaceRoot" FROM projection_projects
+          `.pipe(
+            Effect.mapError(
+              (cause) =>
+                new ServerSettingsError({
+                  settingsPath,
+                  operation: "read-project-settings",
+                  cause,
+                }),
+            ),
+          );
+          // Keep old resolved locations usable for reviews and cleanup after a reset,
+          // including relative project paths whose original root would otherwise be lost.
+          updated = {
+            ...updated,
+            previousWorktreesDirectories: [
+              ...new Set([
+                ...updated.previousWorktreesDirectories,
+                ...managedWorktreesDirectories(current, worktreesDir, pathService, projects).filter(
+                  (directory) => directory !== worktreesDir,
+                ),
+                ...managedWorktreesDirectories(updated, worktreesDir, pathService, projects).filter(
+                  (directory) => directory !== worktreesDir,
+                ),
+              ]),
+            ],
+          };
+        }
         const persisted = yield* persistProviderEnvironmentSecrets(current, updated);
         const next = yield* normalizeServerSettings(persisted.settings);
         const materialized = yield* Effect.uninterruptibleMask(() =>

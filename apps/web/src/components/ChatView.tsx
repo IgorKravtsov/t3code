@@ -10489,7 +10489,14 @@ export default function ChatView(props: ChatViewProps) {
             envMode: mode,
             newWorktreesStartFromOrigin: activeProjectSettings.settings.newWorktreesStartFromOrigin,
           }),
-          ...(mode === "worktree" && draftThread?.worktreePath ? { worktreePath: null } : {}),
+          ...(mode === "worktree" && activeProjectSettings.settings.defaultWorktreeBaseBranch
+            ? {
+                branch: activeProjectSettings.settings.defaultWorktreeBaseBranch,
+                worktreePath: null,
+              }
+            : mode === "worktree" && draftThread?.worktreePath
+              ? { worktreePath: null }
+              : {}),
         });
       }
       scheduleComposerFocus();
@@ -10501,6 +10508,7 @@ export default function ChatView(props: ChatViewProps) {
       isLocalDraftThread,
       multipleModelSelections,
       activeProjectSettings.settings.newWorktreesStartFromOrigin,
+      activeProjectSettings.settings.defaultWorktreeBaseBranch,
       setPendingServerThreadEnvMode,
       scheduleComposerFocus,
       setDraftThreadContext,
