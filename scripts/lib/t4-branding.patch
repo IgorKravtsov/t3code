@@ -1,0 +1,219 @@
+diff --git i/apps/desktop/src/app/DesktopEarlyElectronStartup.ts w/apps/desktop/src/app/DesktopEarlyElectronStartup.ts
+index 95922bdfdc..80ab39fff0 100644
+--- i/apps/desktop/src/app/DesktopEarlyElectronStartup.ts
++++ w/apps/desktop/src/app/DesktopEarlyElectronStartup.ts
+@@ -32,7 +32,7 @@ export interface EarlyLinuxElectronOptions {
+ }
+ 
+ export const resolveLinuxDesktopEntryName = (isDevelopment: boolean): string =>
+-  isDevelopment ? "com.t3tools.T3Code.Development.desktop" : "com.t3tools.T3Code.desktop";
++  isDevelopment ? "com.t4tools.T4Code.Development.desktop" : "com.t4tools.T4Code.desktop";
+ 
+ const trimNonEmpty = (value: string | undefined): string | null => {
+   const trimmed = value?.trim();
+@@ -88,7 +88,7 @@ export function resolveEarlyLinuxElectronOptions(
+   const isDevelopment = isDevelopmentEnvironment(input.env);
+   return {
+     isDevelopment,
+-    linuxWmClass: isDevelopment ? "t3code-dev" : "t3code",
++    linuxWmClass: isDevelopment ? "t4code-dev" : "t4code",
+     linuxDesktopEntryName: resolveLinuxDesktopEntryName(isDevelopment),
+     passwordStore: resolveLinuxPasswordStoreSwitch({
+       preference,
+diff --git i/apps/desktop/src/app/DesktopEnvironment.ts w/apps/desktop/src/app/DesktopEnvironment.ts
+index 6a8bc8e0ea..84a8ffb627 100644
+--- i/apps/desktop/src/app/DesktopEnvironment.ts
++++ w/apps/desktop/src/app/DesktopEnvironment.ts
+@@ -93,7 +93,7 @@ export class DesktopEnvironment extends Context.Service<
+   }
+ >()("@t3tools/desktop/app/DesktopEnvironment") {}
+ 
+-const APP_BASE_NAME = "T3 Code";
++const APP_BASE_NAME = "T4 Code";
+ 
+ function resolveDesktopAppStageLabel(input: {
+   readonly isDevelopment: boolean;
+@@ -114,7 +114,7 @@ export function resolveDesktopAppBranding(input: {
+   return {
+     baseName: APP_BASE_NAME,
+     stageLabel,
+-    displayName: `${APP_BASE_NAME} (${stageLabel})`,
++    displayName: APP_BASE_NAME,
+   };
+ }
+ 
+@@ -236,10 +236,10 @@ const make = Effect.fn("desktop.environment.make")(function* (
+     branding,
+     displayName,
+     appUserModelId: Option.getOrElse(config.appUserModelIdOverride, () =>
+-      isDevelopment ? "com.t3tools.t3code.dev" : "com.t3tools.t3code",
++      isDevelopment ? "com.t4tools.t4code.dev" : "com.t4tools.t4code",
+     ),
+     linuxDesktopEntryName: resolveLinuxDesktopEntryName(isDevelopment),
+-    linuxWmClass: isDevelopment ? "t3code-dev" : "t3code",
++    linuxWmClass: isDevelopment ? "t4code-dev" : "t4code",
+     linuxApplicationsDir,
+     appImagePath: config.appImagePath,
+     defaultDesktopSettings: DesktopAppSettings.resolveDefaultDesktopSettings(input.appVersion),
+diff --git i/apps/desktop/src/app/DesktopLegacyLocalStorage.ts w/apps/desktop/src/app/DesktopLegacyLocalStorage.ts
+index b29cfb3b7c..fb492be1de 100644
+--- i/apps/desktop/src/app/DesktopLegacyLocalStorage.ts
++++ w/apps/desktop/src/app/DesktopLegacyLocalStorage.ts
+@@ -6,7 +6,6 @@ import * as Option from "effect/Option";
+ import * as Path from "effect/Path";
+ import * as Ref from "effect/Ref";
+ 
+-import * as ElectronProtocol from "../electron/ElectronProtocol.ts";
+ import { readChromiumLocalStorage } from "./chromiumLocalStorage.ts";
+ import * as DesktopEnvironment from "./DesktopEnvironment.ts";
+ 
+@@ -30,9 +29,9 @@ export class DesktopLegacyLocalStorage extends Context.Service<
+   }
+ >()("@t3tools/desktop/app/DesktopLegacyLocalStorage") {}
+ 
+-const MARKER_FILE_NAME = "v1-local-storage-imported";
++const MARKER_FILE_NAME = "t4-source-local-storage-imported";
+ // V1 used "T3 Code (Alpha)" when that folder existed and "t3code" otherwise.
+-const V1_PROFILE_NAMES = ["T3 Code (Alpha)", "t3code"];
++const V1_PROFILE_NAMES = ["t4code-v1"];
+ 
+ const make = Effect.gen(function* () {
+   const environment = yield* DesktopEnvironment.DesktopEnvironment;
+@@ -89,7 +88,7 @@ const make = Effect.gen(function* () {
+     yield* Ref.set(markerPath, Option.some(marker));
+     const directory = yield* findV1LocalStorage;
+     if (directory === null) return yield* writeMarker;
+-    const origin = ElectronProtocol.getDesktopUrl(false).replace(/\/$/, "");
++    const origin = "t3code://app";
+     const read = yield* readChromiumLocalStorage(directory, origin).pipe(
+       Effect.provideService(FileSystem.FileSystem, fs),
+       Effect.provideService(Path.Path, path),
+diff --git i/apps/desktop/src/app/DesktopStatePaths.ts w/apps/desktop/src/app/DesktopStatePaths.ts
+index 006dd97092..83bcffb010 100644
+--- i/apps/desktop/src/app/DesktopStatePaths.ts
++++ w/apps/desktop/src/app/DesktopStatePaths.ts
+@@ -16,7 +16,7 @@ export function resolveDesktopBaseDir(input: {
+   readonly t3Home: Option.Option<string>;
+ }): string {
+   return Option.getOrElse(normalizeConfiguredBaseDir(input.t3Home), () =>
+-    input.joinPath(input.homeDirectory, ".t3"),
++    input.joinPath(input.homeDirectory, ".t4"),
+   );
+ }
+ 
+diff --git i/apps/desktop/src/app/DesktopUserData.ts w/apps/desktop/src/app/DesktopUserData.ts
+index 3306b244dc..0e4b725ff6 100644
+--- i/apps/desktop/src/app/DesktopUserData.ts
++++ w/apps/desktop/src/app/DesktopUserData.ts
+@@ -41,8 +41,8 @@ export const resolveUserDataPath = Effect.fn("desktop.userData.resolveUserDataPa
+     const fs = yield* FileSystem.FileSystem;
+     const path = yield* Path.Path;
+     const names = input.isDevelopment
+-      ? { current: "t3code-dev", legacy: "T3 Code (Dev)" }
+-      : { current: "t3code-v2", legacy: "T3 Code (Alpha)" };
++      ? { current: "t4code-dev", legacy: "T4 Code (Dev)" }
++      : { current: "t4code-v1", legacy: "T4 Code" };
+     const destinationPath = path.join(input.appDataDirectory, names.current);
+     const legacyPath = path.join(input.appDataDirectory, names.legacy);
+     const inspect = (resourcePath: string) =>
+diff --git i/apps/desktop/src/electron/ElectronProtocol.ts w/apps/desktop/src/electron/ElectronProtocol.ts
+index 6ac3488917..58cf2ff0e1 100644
+--- i/apps/desktop/src/electron/ElectronProtocol.ts
++++ w/apps/desktop/src/electron/ElectronProtocol.ts
+@@ -13,8 +13,8 @@ import * as Scope from "effect/Scope";
+ import * as Electron from "electron";
+ 
+ export const DESKTOP_HOST = "app";
+-const DESKTOP_PRODUCTION_SCHEME = "t3code";
+-const DESKTOP_DEVELOPMENT_SCHEME = "t3code-dev";
++const DESKTOP_PRODUCTION_SCHEME = "t4code";
++const DESKTOP_DEVELOPMENT_SCHEME = "t4code-dev";
+ 
+ export function getDesktopScheme(isDevelopment: boolean): string {
+   return isDevelopment ? DESKTOP_DEVELOPMENT_SCHEME : DESKTOP_PRODUCTION_SCHEME;
+diff --git i/packages/shared/src/codexAuthHandoff.ts w/packages/shared/src/codexAuthHandoff.ts
+index d6632355e3..a546db36d5 100644
+--- i/packages/shared/src/codexAuthHandoff.ts
++++ w/packages/shared/src/codexAuthHandoff.ts
+@@ -85,7 +85,7 @@ export function codexCallbackUrl(value: string, redirectUri: string, state: stri
+ }
+ 
+ export function codexAuthHandoffUrl(input: CodexAuthHandoff, development = false) {
+-  const url = new URL(`${development ? "t3code-dev" : "t3code"}://auth/codex`);
++  const url = new URL(`${development ? "t4code-dev" : "t4code"}://auth/codex`);
+   url.searchParams.set("request", encodeHandoff(input));
+   return url.toString();
+ }
+--- a/scripts/build-desktop-artifact.ts
++++ b/scripts/build-desktop-artifact.ts
+@@ -54,7 +54,7 @@
+ import { ChildProcess, ChildProcessSpawner } from "effect/process";
+ 
+ const LINUX_ICON_SIZES = [16, 22, 24, 32, 48, 64, 128, 256, 512] as const;
+-const DESKTOP_APP_ID = "com.t3tools.t3code";
++const DESKTOP_APP_ID = "com.t4tools.t4code";
+ const APPLE_TEAM_ID_PATTERN = /^[A-Z0-9]{10}$/u;
+ 
+ const BuildPlatform = Schema.Literals(["mac", "linux", "win"]);
+@@ -2642,10 +2642,8 @@
+   return `${trimmed.slice(0, versionSeparator)}/${trimmed.slice(versionSeparator + 1)}`;
+ }
+ 
+-export function resolveDesktopProductName(version: string): string {
+-  return resolveDesktopUpdateChannel(version) === "nightly"
+-    ? "T3 Code (Nightly)"
+-    : (desktopPackageJson.productName ?? "T3 Code");
++export function resolveDesktopProductName(_version: string): string {
++  return "T4 Code";
+ }
+ 
+ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
+@@ -2670,7 +2668,7 @@
+   const buildConfig: Record<string, unknown> = {
+     appId: DESKTOP_APP_ID,
+     productName: resolveDesktopProductName(version),
+-    artifactName: "T3-Code-${version}-${arch}.${ext}",
++    artifactName: "T4-Code-${version}-${arch}.${ext}",
+     electronLanguages: [...DESKTOP_ELECTRON_LANGUAGES],
+     files: [
+       ...DESKTOP_FILE_EXCLUSIONS,
+@@ -2725,8 +2723,8 @@
+       },
+       protocols: [
+         {
+-          name: "T3 Code",
+-          schemes: ["t3code", "t3code-dev"],
++          name: "T4 Code",
++          schemes: ["t4code", "t4code-dev"],
+         },
+       ],
+       ...(signed ? { sign: path.join(repoRoot, "scripts/sign-macos.ts") } : {}),
+@@ -2768,7 +2766,7 @@
+       // resources/package-type into the .deb only, so electron-updater updates
+       // each install in its own format.
+       target: target === "AppImage" ? [target, "deb"] : [target],
+-      executableName: "t3code",
++      executableName: "t4code",
+       icon: "icons",
+       category: "Development",
+       synopsis: "Desktop GUI for coding agents",
+@@ -2779,8 +2777,8 @@
+       // t3code:// OAuth callbacks to the app.
+       protocols: [
+         {
+-          name: "T3 Code",
+-          schemes: ["t3code", "t3code-dev"],
++          name: "T4 Code",
++          schemes: ["t4code", "t4code-dev"],
+         },
+       ],
+       desktop: {
+@@ -3692,7 +3690,7 @@
+       ? path.join(stageAppDir, WINDOWS_SERVER_RESOURCE_SOURCE_DIR, WINDOWS_SERVER_ASAR_RESOURCE)
+       : undefined;
+   const stagePackageJson: StagePackageJson = {
+-    name: "t3code",
++    name: "t4code",
+     version: appVersion,
+     buildVersion: appVersion,
+     t3codeCommitHash: commitHash,

@@ -3907,9 +3907,15 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
   for (const entry of stageEntries) {
     const from = path.join(stageDistDir, entry);
     const stat = yield* fs.stat(from).pipe(Effect.orElseSucceed(() => null));
-    if (!stat || stat.type !== "File") continue;
+    if (!stat) continue;
 
     const to = path.join(options.outputDir, entry);
+    if (stat.type === "Directory" && options.target === "dir") {
+      yield* fs.copy(from, to);
+      copiedArtifacts.push(to);
+      continue;
+    }
+    if (stat.type !== "File") continue;
     yield* fs.copyFile(from, to);
     copiedArtifacts.push(to);
   }

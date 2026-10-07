@@ -4,6 +4,35 @@
 
 This document covers the unified release workflow for stable and nightly desktop releases.
 
+## Separate local T4 Code build
+
+On Linux or macOS, install Node 24, pnpm 11.10 and Rust, then run from this branch:
+
+```sh
+pnpm install --frozen-lockfile
+node scripts/build-t4-local.ts --launch
+```
+
+The script builds the checked-in revision in a detached worktree for the machine's native
+architecture. Linux installs under `~/.local/share/t4code/app`; macOS installs
+`~/Applications/T4 Code.app`. Both provide `~/.local/bin/t4-code`. The local preview has a
+separate application identity, URL handler, desktop profile, and `~/.t4` data directory;
+it carries no T3 update feed.
+
+On first installation it copies all local `~/.t3/userdata`, backs up SQLite through the
+read-only SQLite backup API (including WAL), and preserves the untouched snapshot in
+`~/.t4/migration-source`. It copies the local desktop profile and re-encrypts saved connection
+credentials and login tokens with T4's OS keyring key. Run from an unlocked graphical session
+when protected credentials exist. Existing T4 data is preserved on subsequent builds;
+`--no-migrate` starts with independent empty data instead.
+
+The copied environment gets its own identity. Automatic agent continuation, scheduled tasks,
+and worktree cleanup are disabled in the active copy; their original values remain in the
+snapshot. Existing Git worktrees retain their paths and are shared working directories, so
+start new T4 conversations in new worktrees when working alongside T3. Migration copies this
+machine's local data; it does not synchronize machines or copy browser-only connection storage
+from other devices. A macOS build runs on macOS and is locally signed rather than notarized.
+
 ## What the workflow does
 
 - Workflow: `.github/workflows/release.yml`
