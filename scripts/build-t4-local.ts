@@ -173,7 +173,7 @@ if (await exists(install)) {
     ),
   );
 }
-await NodeFSP.cp(built, install, { recursive: true });
+await NodeFSP.cp(built, install, { recursive: true, verbatimSymlinks: true });
 const executable =
   platform === "mac"
     ? NodePath.join(install, "Contents", "MacOS", "T4 Code")

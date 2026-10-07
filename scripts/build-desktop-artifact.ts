@@ -55,6 +55,18 @@ import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
 const LINUX_ICON_SIZES = [16, 22, 24, 32, 48, 64, 128, 256, 512] as const;
 const DESKTOP_APP_ID = "com.t3tools.t3code";
+
+export class DesktopArtifactCopyError extends Schema.TaggedError<DesktopArtifactCopyError>()(
+  "DesktopArtifactCopyError",
+  { source: Schema.String, destination: Schema.String, cause: Schema.Defect() },
+) {}
+
+/** Keep macOS framework links relative, so the copied application survives staging cleanup. */
+export const copyDesktopArtifactDirectory = (source: string, destination: string) =>
+  Effect.tryPromise({
+    try: () => NodeFSP.cp(source, destination, { recursive: true, verbatimSymlinks: true }),
+    catch: (cause) => new DesktopArtifactCopyError({ source, destination, cause }),
+  });
 const APPLE_TEAM_ID_PATTERN = /^[A-Z0-9]{10}$/u;
 
 const BuildPlatform = Schema.Literals(["mac", "linux", "win"]);
@@ -3911,7 +3923,7 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
 
     const to = path.join(options.outputDir, entry);
     if (stat.type === "Directory" && options.target === "dir") {
-      yield* fs.copy(from, to);
+      yield* copyDesktopArtifactDirectory(from, to);
       copiedArtifacts.push(to);
       continue;
     }

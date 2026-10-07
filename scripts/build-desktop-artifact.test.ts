@@ -70,6 +70,7 @@ import {
   STAGE_INSTALL_ARGS,
   ancestorNodeModulesPaths,
   copyDirectoryPreservingSymlinks,
+  copyDesktopArtifactDirectory,
   LinuxBrowserSecretHostError,
   stageBrowserSecret,
   validateWindowsPackagedPayload,
@@ -2408,3 +2409,33 @@ it("ignores trailing separators", () => {
     ancestorNodeModulesPaths("C:\\tmp\\probe\\app", "\\"),
   );
 });
+
+it.effect.skipIf(!symlinksSupported)(
+  "keeps copied macOS framework links usable after the build stage is removed",
+  () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const root = yield* fs.makeTempDirectoryScoped({ prefix: "desktop-artifact-links-" });
+      const stage = path.join(root, "stage", "T4.app");
+      const copied = path.join(root, "installed", "T4.app");
+      const framework = "Contents/Frameworks/Electron.framework";
+      yield* fs.makeDirectory(path.join(stage, framework, "Versions/A"), { recursive: true });
+      yield* fs.writeFileString(
+        path.join(stage, framework, "Versions/A/Electron"),
+        "native framework",
+      );
+      yield* fs.symlink("A", path.join(stage, framework, "Versions/Current"));
+      yield* fs.symlink("Versions/Current/Electron", path.join(stage, framework, "Electron"));
+      yield* copyDesktopArtifactDirectory(stage, copied);
+      yield* fs.remove(path.join(root, "stage"), { recursive: true });
+      assert.equal(
+        yield* fs.readLink(path.join(copied, framework, "Electron")),
+        "Versions/Current/Electron",
+      );
+      assert.equal(
+        yield* fs.readFileString(path.join(copied, framework, "Electron")),
+        "native framework",
+      );
+    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+);

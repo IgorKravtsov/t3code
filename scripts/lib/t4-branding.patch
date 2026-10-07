@@ -152,10 +152,10 @@ index d6632355e3..a546db36d5 100644
  const LINUX_ICON_SIZES = [16, 22, 24, 32, 48, 64, 128, 256, 512] as const;
 -const DESKTOP_APP_ID = "com.t3tools.t3code";
 +const DESKTOP_APP_ID = "com.t4tools.t4code";
- const APPLE_TEAM_ID_PATTERN = /^[A-Z0-9]{10}$/u;
  
- const BuildPlatform = Schema.Literals(["mac", "linux", "win"]);
-@@ -2642,10 +2642,8 @@
+ export class DesktopArtifactCopyError extends Schema.TaggedError<DesktopArtifactCopyError>()(
+   "DesktopArtifactCopyError",
+@@ -2654,10 +2654,8 @@
    return `${trimmed.slice(0, versionSeparator)}/${trimmed.slice(versionSeparator + 1)}`;
  }
  
@@ -168,7 +168,7 @@ index d6632355e3..a546db36d5 100644
  }
  
  export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
-@@ -2670,7 +2668,7 @@
+@@ -2682,7 +2680,7 @@
    const buildConfig: Record<string, unknown> = {
      appId: DESKTOP_APP_ID,
      productName: resolveDesktopProductName(version),
@@ -177,7 +177,7 @@ index d6632355e3..a546db36d5 100644
      electronLanguages: [...DESKTOP_ELECTRON_LANGUAGES],
      files: [
        ...DESKTOP_FILE_EXCLUSIONS,
-@@ -2725,8 +2723,8 @@
+@@ -2737,8 +2735,8 @@
        },
        protocols: [
          {
@@ -188,7 +188,7 @@ index d6632355e3..a546db36d5 100644
          },
        ],
        ...(signed ? { sign: path.join(repoRoot, "scripts/sign-macos.ts") } : {}),
-@@ -2768,7 +2766,7 @@
+@@ -2780,7 +2778,7 @@
        // resources/package-type into the .deb only, so electron-updater updates
        // each install in its own format.
        target: target === "AppImage" ? [target, "deb"] : [target],
@@ -197,7 +197,7 @@ index d6632355e3..a546db36d5 100644
        icon: "icons",
        category: "Development",
        synopsis: "Desktop GUI for coding agents",
-@@ -2779,8 +2777,8 @@
+@@ -2791,8 +2789,8 @@
        // t3code:// OAuth callbacks to the app.
        protocols: [
          {
@@ -208,7 +208,7 @@ index d6632355e3..a546db36d5 100644
          },
        ],
        desktop: {
-@@ -3692,7 +3690,7 @@
+@@ -3704,7 +3702,7 @@
        ? path.join(stageAppDir, WINDOWS_SERVER_RESOURCE_SOURCE_DIR, WINDOWS_SERVER_ASAR_RESOURCE)
        : undefined;
    const stagePackageJson: StagePackageJson = {
