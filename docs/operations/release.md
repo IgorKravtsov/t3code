@@ -35,6 +35,13 @@ start new T4 conversations in new worktrees when working alongside T3. Migration
 machine's local data; it does not synchronize machines or copy browser-only connection storage
 from other devices. A macOS build runs on macOS and is locally signed rather than notarized.
 
+Saved remote connections are retained. Direct connections use the server already running at
+their address; features requiring new server capabilities need this branch on that server too.
+Managed SSH connections download the desktop's exact CLI release version. This local preview
+does not publish a CLI archive, so that bootstrap cannot download it and returns HTTP 404.
+Use a published release for managed SSH connections; this script builds and installs only the
+local application and does not deploy a runtime to other machines.
+
 ## What the workflow does
 
 - Workflow: `.github/workflows/release.yml`
