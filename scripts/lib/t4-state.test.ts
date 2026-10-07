@@ -106,3 +106,60 @@ it("refuses symlinks that would make the copied profile reference live state", a
     "symlink",
   );
 });
+
+it("preserves committed WAL data from an exclusively locked Chromium database without unlocking it", async () => {
+  const directory = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "t4-chromium-test-"));
+  temporary.push(directory);
+  const source = NodePath.join(directory, "profile");
+  await NodeFSP.mkdir(source);
+  const live = new NodeSqlite.DatabaseSync(NodePath.join(source, "DIPS"));
+  try {
+    live.exec(`PRAGMA locking_mode=EXCLUSIVE; PRAGMA journal_mode=WAL;
+      PRAGMA wal_autocheckpoint=0; CREATE TABLE records(value TEXT);
+      INSERT INTO records VALUES ('committed while T3 is open');`);
+    const destination = NodePath.join(directory, "snapshot");
+    await copyStateDirectory(source, destination, { snapshotLockedDatabases: true });
+    expect(databaseCounts(NodePath.join(destination, "DIPS"))).toEqual({ records: 1 });
+    const copy = new NodeSqlite.DatabaseSync(NodePath.join(destination, "DIPS"), {
+      readOnly: true,
+    });
+    try {
+      expect(copy.prepare("SELECT value FROM records").get()?.value).toBe(
+        "committed while T3 is open",
+      );
+    } finally {
+      copy.close();
+    }
+    expect(live.prepare("PRAGMA locking_mode").get()?.locking_mode).toBe("exclusive");
+  } finally {
+    live.close();
+  }
+});
+
+it("recovers only committed data when Chromium holds an unfinished rollback transaction", async () => {
+  const directory = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "t4-rollback-test-"));
+  temporary.push(directory);
+  const source = NodePath.join(directory, "profile");
+  await NodeFSP.mkdir(source);
+  const live = new NodeSqlite.DatabaseSync(NodePath.join(source, "Cookies"));
+  try {
+    live.exec(`PRAGMA locking_mode=EXCLUSIVE; PRAGMA journal_mode=DELETE;
+      PRAGMA cache_size=1; CREATE TABLE records(value TEXT);
+      INSERT INTO records VALUES ('committed'); BEGIN EXCLUSIVE;
+      UPDATE records SET value='uncommitted';`);
+    const destination = NodePath.join(directory, "snapshot");
+    await copyStateDirectory(source, destination, { snapshotLockedDatabases: true });
+    const copy = new NodeSqlite.DatabaseSync(NodePath.join(destination, "Cookies"), {
+      readOnly: true,
+    });
+    try {
+      expect(copy.prepare("SELECT value FROM records").get()?.value).toBe("committed");
+    } finally {
+      copy.close();
+    }
+    expect(live.prepare("SELECT value FROM records").get()?.value).toBe("uncommitted");
+    live.exec("ROLLBACK");
+  } finally {
+    live.close();
+  }
+});

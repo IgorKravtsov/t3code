@@ -17,9 +17,14 @@ export async function exists(path: string) {
 }
 
 /** Copy database contents through SQLite, including committed WAL frames. Never open the source writable. */
-export async function copyStateDirectory(source: string, destination: string) {
+export async function copyStateDirectory(
+  source: string,
+  destination: string,
+  options: { skipNames?: ReadonlySet<string>; snapshotLockedDatabases?: boolean } = {},
+) {
   await NodeFSP.mkdir(destination, { recursive: true, mode: 0o700 });
   for (const entry of await NodeFSP.readdir(source, { withFileTypes: true })) {
+    if (options.skipNames?.has(entry.name)) continue;
     if (/(-wal|-shm|-journal)$/.test(entry.name) || /^(Singleton|LOCK$)/.test(entry.name)) continue;
     const from = NodePath.join(source, entry.name);
     const to = NodePath.join(destination, entry.name);
@@ -29,7 +34,7 @@ export async function copyStateDirectory(source: string, destination: string) {
         throw new Error(`Refusing to copy state symlink: ${from}`);
       continue;
     }
-    if (entry.isDirectory()) await copyStateDirectory(from, to);
+    if (entry.isDirectory()) await copyStateDirectory(from, to, options);
     else if (entry.isFile()) {
       const handle = await NodeFSP.open(from, "r");
       const header = Buffer.alloc(16);
@@ -42,11 +47,63 @@ export async function copyStateDirectory(source: string, destination: string) {
         const database = new NodeSqlite.DatabaseSync(from, { readOnly: true });
         try {
           await NodeSqlite.backup(database, to);
+        } catch (cause) {
+          if (!options.snapshotLockedDatabases)
+            throw new Error(`Could not snapshot SQLite database: ${from}`, { cause });
+          await snapshotLockedDatabase(from, to);
         } finally {
           database.close();
         }
       } else await NodeFSP.copyFile(from, to);
     }
+  }
+}
+
+/** Chromium holds some databases exclusively. Clone stable DB/journal files, then let SQLite
+ * recover and validate that private copy. The live source is never opened writable or unlocked. */
+async function snapshotLockedDatabase(source: string, destination: string) {
+  const directory = await NodeFSP.mkdtemp(destination + ".snapshot-");
+  const copy = NodePath.join(directory, "source.sqlite");
+  const version = async (path: string) => {
+    try {
+      const stat = await NodeFSP.stat(path, { bigint: true });
+      return `${stat.ino}:${stat.size}:${stat.mtimeNs}:${stat.ctimeNs}`;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+      throw error;
+    }
+  };
+  try {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const suffixes = ["", "-wal", "-journal"];
+      const before = await Promise.all(suffixes.map((suffix) => version(source + suffix)));
+      try {
+        for (const [index, suffix] of suffixes.entries()) {
+          if (before[index] !== null) await NodeFSP.copyFile(source + suffix, copy + suffix);
+          else await NodeFSP.rm(copy + suffix, { force: true });
+        }
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
+        throw error;
+      }
+      const after = await Promise.all(suffixes.map((suffix) => version(source + suffix)));
+      if (before.some((value, index) => value !== after[index])) continue;
+      // Writable only on the private clone, so SQLite can recover a hot rollback journal.
+      const database = new NodeSqlite.DatabaseSync(copy);
+      try {
+        if (database.prepare("PRAGMA quick_check").get()?.quick_check !== "ok")
+          throw new Error(`Copied Chromium database failed integrity validation: ${source}`);
+        await NodeSqlite.backup(database, destination);
+        return;
+      } finally {
+        database.close();
+      }
+    }
+    throw new Error(
+      `Chromium database kept changing during profile copy: ${source}. Retry migration when the browser is idle.`,
+    );
+  } finally {
+    await NodeFSP.rm(directory, { force: true, recursive: true });
   }
 }
 
