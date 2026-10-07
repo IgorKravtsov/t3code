@@ -183,7 +183,9 @@ await NodeFSP.mkdir(bin, { recursive: true });
 const launcher = NodePath.join(bin, "t4-code");
 await NodeFSP.writeFile(
   launcher,
-  `#!/bin/sh\nexport T3CODE_HOME=${shellQuote(t4Home)}\nunset ELECTRON_RUN_AS_NODE\nexec ${shellQuote(executable)} "$@"\n`,
+  platform === "mac"
+    ? `#!/bin/sh\nexec /usr/bin/open -a ${shellQuote(install)} --env ${shellQuote("T3CODE_HOME=" + t4Home)} --args "$@"\n`
+    : `#!/bin/sh\nexport T3CODE_HOME=${shellQuote(t4Home)}\nunset ELECTRON_RUN_AS_NODE\nexec ${shellQuote(executable)} "$@"\n`,
   { mode: 0o755 },
 );
 if (platform === "linux") {
