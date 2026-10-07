@@ -111,7 +111,9 @@ function T4UpstreamControl({ bridge }: { readonly bridge: T4UpstreamBridge }) {
             {state.conflicts.length > 0 ? (
               <div>
                 <div className="text-xs font-medium text-destructive">
-                  Resolve these conflicts in {state.branch} before updating:
+                  {state.kind === "rebuild"
+                    ? "New T3 commits conflict and are not included. Resolve by hand:"
+                    : `Resolve these conflicts in ${state.branch} before updating:`}
                 </div>
                 <ul className="mt-1 space-y-0.5 font-mono text-xs break-all">
                   {state.conflicts.map((file) => (

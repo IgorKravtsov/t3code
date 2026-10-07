@@ -60,7 +60,7 @@ export function stateFromInspection(
     kind: inspection.kind,
     commits: inspection.commits,
     totalCommits: inspection.totalCommits,
-    conflicts: inspection.kind === "merge" ? inspection.conflicts : [],
+    conflicts: inspection.conflicts,
   };
 }
 

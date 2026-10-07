@@ -30,9 +30,13 @@ export type T4UpstreamInspection =
       readonly totalCommits: number;
     }
   | {
-      /** The fork branch moved past the installed build, e.g. merged on another machine. */
+      /**
+       * The fork branch moved past the installed build, e.g. merged on another machine.
+       * `conflicts` lists upstream files that still need reconciling by hand.
+       */
       readonly kind: "rebuild";
       readonly base: string;
+      readonly conflicts: ReadonlyArray<string>;
       readonly commits: ReadonlyArray<T4Commit>;
       readonly totalCommits: number;
     };
@@ -118,6 +122,16 @@ export async function fetchRemotes(repository: string, branch: string) {
   await git(repository, ["fetch", "--quiet", UPSTREAM_REMOTE, UPSTREAM_BRANCH]);
 }
 
+async function listForkCommits(
+  config: Pick<T4SourceConfig, "repository" | "builtCommit">,
+  base: string,
+) {
+  const known = await revParse(config.repository, config.builtCommit);
+  const range =
+    known && (await isAncestor(config.repository, known, base)) ? `${known}..${base}` : base;
+  return listCommits(config.repository, range);
+}
+
 /** Decides what an update would do without touching any ref, index, or working tree. */
 export async function inspectUpstream(
   config: Pick<T4SourceConfig, "repository" | "branch" | "builtCommit">,
@@ -134,6 +148,9 @@ export async function inspectUpstream(
       { allowedExitCodes: [1] },
     );
     const [tree = "", ...conflicts] = new Set(merge.stdout.split("\n").filter(Boolean));
+    // A conflicting upstream must not block installing fork commits made since this build.
+    if (merge.code !== 0 && base !== config.builtCommit)
+      return { kind: "rebuild", base, conflicts, ...(await listForkCommits(config, base)) };
     return {
       kind: "merge",
       base,
@@ -143,11 +160,8 @@ export async function inspectUpstream(
       ...(await listCommits(repository, `${base}..${upstream}`)),
     };
   }
-  if (base !== config.builtCommit) {
-    const known = await revParse(repository, config.builtCommit);
-    const range = known && (await isAncestor(repository, known, base)) ? `${known}..${base}` : base;
-    return { kind: "rebuild", base, ...(await listCommits(repository, range)) };
-  }
+  if (base !== config.builtCommit)
+    return { kind: "rebuild", base, conflicts: [], ...(await listForkCommits(config, base)) };
   return { kind: "up-to-date", base };
 }
 

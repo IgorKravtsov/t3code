@@ -88,11 +88,11 @@ describe("inspectUpstream", () => {
 
   it("lists conflicting files without producing a tree", async () => {
     const { local, config, upstreamCommit } = await setup();
-    await commit(local, "shared.txt", "a\nfork\nc\n", "feat(t4): edit shared");
+    const built = await commit(local, "shared.txt", "a\nfork\nc\n", "feat(t4): edit shared");
     await upstreamCommit("shared.txt", "a\nupstream\nc\n", "feat: edit shared");
 
     await fetchRemotes(local, "t4-code");
-    await expect(inspectUpstream(config)).resolves.toMatchObject({
+    await expect(inspectUpstream({ ...config, builtCommit: built })).resolves.toMatchObject({
       kind: "merge",
       tree: null,
       conflicts: ["shared.txt"],
@@ -110,6 +110,20 @@ describe("inspectUpstream", () => {
       kind: "rebuild",
       totalCommits: 1,
       commits: [{ subject: "fix(t4): merged on another machine" }],
+    });
+  });
+
+  it("still offers fork commits while upstream conflicts", async () => {
+    const { local, config, upstreamCommit } = await setup();
+    await commit(local, "shared.txt", "a\nfork\nc\n", "fix(t4): edit shared");
+    await git(local, ["push", "--quiet", "origin", "t4-code"]);
+    await upstreamCommit("shared.txt", "a\nupstream\nc\n", "feat: edit shared");
+
+    await fetchRemotes(local, "t4-code");
+    await expect(inspectUpstream(config)).resolves.toMatchObject({
+      kind: "rebuild",
+      conflicts: ["shared.txt"],
+      commits: [{ subject: "fix(t4): edit shared" }],
     });
   });
 
