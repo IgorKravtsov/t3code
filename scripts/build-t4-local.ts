@@ -124,7 +124,15 @@ async function migrateProfileAndCredentials() {
       await copyStateDirectory(source, snapshot, { snapshotLockedDatabases: true });
       await NodeFSP.writeFile(profileMarker, "complete\n", { mode: 0o600 });
     }
-    if (!(await exists(destination))) await copyStateDirectory(snapshot, destination);
+    if (!(await exists(destination))) {
+      const staging = await NodeFSP.mkdtemp(destination + ".migrating-");
+      try {
+        await copyStateDirectory(snapshot, staging);
+        await NodeFSP.rename(staging, destination);
+      } finally {
+        await NodeFSP.rm(staging, { force: true, recursive: true });
+      }
+    }
     Effect.runSync(Effect.log(`Copied local desktop profile from ${name}.`));
     break;
   }

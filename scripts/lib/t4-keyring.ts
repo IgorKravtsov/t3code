@@ -48,10 +48,11 @@ export async function reencryptT4Credentials(
     NodePath.join(helper, "main.cjs"),
     `
 const {app,safeStorage}=require('electron');
+if(process.env.T4_HELPER_PIDFILE) require('node:fs').writeFileSync(process.env.T4_HELPER_PIDFILE,String(process.pid),{mode:0o600});
 app.setName(process.env.T4_KEYRING_NAME);
 app.setPath('userData',process.env.T4_HELPER_PROFILE);
-let input=''; process.stdin.setEncoding('utf8'); process.stdin.on('data',chunk=>input+=chunk);
-process.stdin.on('end',async()=>{try{await app.whenReady();
+let input='',started=false; process.stdin.setEncoding('utf8');
+const run=async()=>{if(started)return;started=true;try{await app.whenReady();
 if(!safeStorage.isEncryptionAvailable()) throw new Error('Keyring unavailable');
 const values=await Promise.all(JSON.parse(input).map(async value=>{
 if(process.env.T4_KEYRING_MODE!=='decrypt') return safeStorage.encryptString(value).toString('base64');
@@ -60,8 +61,10 @@ try{return safeStorage.decryptString(bytes);}catch(error){
 if(typeof safeStorage.decryptStringAsync!=='function') throw error;
 return (await safeStorage.decryptStringAsync(bytes)).result;}
 }));
-process.stdout.write(JSON.stringify(values));app.exit(0);
-}catch{process.stderr.write('Credential migration failed; unlock the OS keyring and retry.');app.exit(1);}});
+process.stdout.write(JSON.stringify(values),()=>app.exit(0));
+}catch(error){process.stderr.write(JSON.stringify({error:error.name,message:error.message}));app.exit(1);}};
+process.stdin.on('data',chunk=>{input+=chunk;if(input.includes('\\n'))void run();});
+process.stdin.on('end',()=>void run());
 `,
   );
   const helperEnvironment: NodeJS.ProcessEnv = {
@@ -90,22 +93,108 @@ process.stdout.write(JSON.stringify(values));app.exit(0);
     if (backend) switches.push(`--password-store=${backend}`);
   }
   async function transform(name: string, mode: string, input: string[]) {
+    // Electron chooses the keyring namespace from package metadata before running main.cjs.
+    await NodeFSP.writeFile(
+      NodePath.join(helper, "package.json"),
+      JSON.stringify({ name, productName: name, main: "main.cjs" }),
+    );
     await NodeFSP.mkdir(NodePath.join(helper, "profile"), { recursive: true });
+    if (Effect.runSync(HostProcessPlatform) === "darwin") {
+      // LaunchServices owns the graphical security session. An SSH-launched process cannot
+      // request Keychain interaction. FIFOs carry plaintext in memory, never in regular files.
+      const inputPipe = NodePath.join(helper, "input");
+      const outputPipe = NodePath.join(helper, "output");
+      const errors = NodePath.join(helper, "errors");
+      const pidFile = NodePath.join(helper, "pid");
+      for (const path of [inputPipe, outputPipe, pidFile]) await NodeFSP.rm(path, { force: true });
+      const pipes = NodeChildProcess.spawnSync("mkfifo", ["-m", "600", inputPipe, outputPipe]);
+      if (pipes.status !== 0)
+        throw new Error("Could not create private pipes for Keychain migration.");
+      const bundle = NodePath.resolve(electron, "..", "..", "..");
+      const child = NodeChildProcess.spawn(
+        "/usr/bin/open",
+        [
+          "-W",
+          "-n",
+          "-g",
+          bundle,
+          "--stdin",
+          inputPipe,
+          "--stdout",
+          outputPipe,
+          "--stderr",
+          errors,
+          "--env",
+          `T4_KEYRING_NAME=${name}`,
+          "--env",
+          `T4_KEYRING_MODE=${mode}`,
+          "--env",
+          `T4_HELPER_PROFILE=${helperEnvironment.T4_HELPER_PROFILE}`,
+          "--env",
+          `T4_HELPER_PIDFILE=${pidFile}`,
+          "--args",
+          helper,
+        ],
+        { stdio: "ignore" },
+      );
+      const completed = new Promise<void>((resolve, reject) => {
+        child.once("error", reject);
+        child.once("exit", (code) =>
+          code === 0 ? resolve() : reject(new Error(`Keychain helper launch exited with ${code}`)),
+        );
+      });
+      const timeoutController = new AbortController();
+      const timeout = Effect.runPromise(Effect.sleep("2 minutes"), {
+        signal: timeoutController.signal,
+      }).then(() => {
+        throw new Error("Allow Keychain access in the Mac system dialog, then retry migration.");
+      });
+      try {
+        const result = await Promise.race([
+          Promise.all([
+            completed,
+            NodeFSP.writeFile(inputPipe, JSON.stringify(input) + "\n"),
+            NodeFSP.readFile(outputPipe, "utf8"),
+          ]),
+          timeout,
+        ]);
+        if (!result[2])
+          throw new Error(
+            `Keychain migration failed: ${(await NodeFSP.readFile(errors, "utf8")).slice(-1000)}`,
+          );
+        return JSON.parse(result[2]) as string[];
+      } catch (error) {
+        if (await exists(pidFile)) {
+          const pid = Number(await NodeFSP.readFile(pidFile, "utf8"));
+          if (Number.isInteger(pid) && pid > 0) {
+            try {
+              process.kill(pid, "SIGTERM");
+            } catch {
+              /* The helper already exited. */
+            }
+          }
+        }
+        child.kill("SIGTERM");
+        throw error;
+      } finally {
+        timeoutController.abort();
+      }
+    }
     const result = NodeChildProcess.spawnSync(electron, [...switches, helper], {
-      input: JSON.stringify(input),
+      input: JSON.stringify(input) + "\n",
       encoding: "utf8",
       timeout: 60_000,
       env: { ...helperEnvironment, T4_KEYRING_NAME: name, T4_KEYRING_MODE: mode },
     });
     if (result.status !== 0)
       throw new Error(
-        "Could not migrate protected credentials. Unlock the OS keyring and retry; the original snapshot is preserved.",
+        `Credential migration helper exited with ${result.status}: ${result.stderr.slice(-1000)}`,
       );
     return JSON.parse(result.stdout) as string[];
   }
   try {
     let plaintext: string[] | undefined;
-    for (const name of ["T3 Code (Nightly)", "T3 Code (Alpha)", "T3 Code", "t3code"]) {
+    for (const name of ["t3code", "T3 Code (Nightly)", "T3 Code (Alpha)", "T3 Code"]) {
       try {
         plaintext = await transform(
           name,
@@ -113,7 +202,8 @@ process.stdout.write(JSON.stringify(values));app.exit(0);
           fields.map((field) => field.ciphertext),
         );
         break;
-      } catch {
+      } catch (cause) {
+        if (name === "T3 Code") throw cause;
         /* Historical installs used different app names. */
       }
     }
@@ -121,7 +211,7 @@ process.stdout.write(JSON.stringify(values));app.exit(0);
       throw new Error(
         "Could not decrypt source credentials with the OS keyring. The source snapshot is preserved; retry from an unlocked graphical session.",
       );
-    const encrypted = await transform("T4 Code", "encrypt", plaintext);
+    const encrypted = await transform("t4code", "encrypt", plaintext);
     fields.forEach((field, index) => field.replace(encrypted[index]!));
     for (const file of files)
       await NodeFSP.writeFile(file.path, JSON.stringify(file.document, null, 2) + "\n", {
