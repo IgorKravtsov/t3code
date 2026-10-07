@@ -28,3 +28,11 @@ export interface T4UpstreamBridge {
   update: () => Promise<T4UpstreamState>;
   onState: (listener: (state: T4UpstreamState) => void) => () => void;
 }
+
+// Augmented here rather than edited in ipc.ts, so daily upstream merges never touch that file.
+declare module "./ipc.ts" {
+  interface DesktopBridge {
+    /** Present in local T4 fork builds. */
+    t4Upstream?: T4UpstreamBridge;
+  }
+}
