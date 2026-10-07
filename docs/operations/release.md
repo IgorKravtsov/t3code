@@ -37,6 +37,10 @@ touching any checkout, builds it in a new worktree, pushes `t4-code` to `origin`
 the local branch, then installs and relaunches T4 after it quits. The branch moves only after a
 successful build; the build log is `~/.t4/t4-update.log`. When `origin/t4-code` is ahead of the
 installed build (for example, merged on another machine), the same control offers **Rebuild**.
+At every start, T4 also applies settings changed in local T3 since the previous start
+(`settings.json`, client, desktop and keybinding settings), keeping values edited in T4; the
+last applied T3 values are kept in `~/.t4/t3-settings-baseline`. Thread continuation and
+auto-resume stay off in T4 so both apps never resume the same threads.
 Pushing over HTTPS falls back to the `gh` login. Older source worktrees and all but the last
 previous application copy are removed after each installation.
 

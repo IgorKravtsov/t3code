@@ -32,6 +32,7 @@ import * as DesktopState from "./DesktopState.ts";
 import * as DesktopRemoteUpdates from "../updates/DesktopRemoteUpdates.ts";
 import * as DesktopUpdates from "../updates/DesktopUpdates.ts";
 import { startT4UpstreamSync } from "../t4/T4UpstreamSync.ts";
+import { syncT3SettingsIntoT4 } from "../t4/t4SettingsSync.ts";
 import * as DesktopSnapShot from "../snapShot/DesktopSnapShot.ts";
 import * as DesktopWslBackend from "../wsl/DesktopWslBackend.ts";
 import * as DesktopRendererHistory from "../telemetry/DesktopRendererHistory.ts";
@@ -278,6 +279,10 @@ const startup = Effect.gen(function* () {
   const updates = yield* DesktopUpdates.DesktopUpdates;
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
 
+  // Local T4 builds only; before any service reads settings.
+  const t3SettingsApplied = yield* Effect.sync(() => syncT3SettingsIntoT4(environment.baseDir));
+  if (t3SettingsApplied.length > 0)
+    yield* Effect.logInfo("applied T3 settings changes", { files: t3SettingsApplied });
   yield* shellEnvironment.installIntoProcess;
   const hasCommandLinePasswordStore =
     preReadyElectronOptions.linuxPasswordStoreCommandLine !== null;
