@@ -205,23 +205,31 @@ try {
       ];
       const builds = NodePath.join(NodeOS.homedir(), ".local/share/t4code-build");
       if (await exists(builds))
-        for (const name of (await NodeFSP.readdir(builds))
-          .filter((name) => name.startsWith("source-"))
+        for (const { name } of (await NodeFSP.readdir(builds, { withFileTypes: true }))
+          .filter((entry) => entry.isDirectory() && entry.name.startsWith("source-"))
           .toReversed())
           candidates.push(
             NodePath.join(builds, name, "apps/desktop/node_modules/electron/dist", executable),
           );
-      const electron =
+      let electron =
         options.electron ||
         (
           await Promise.all(
             candidates.map(async (path) => ((await exists(path)) ? path : undefined)),
           )
         ).find(Boolean);
-      if (!electron)
-        throw new Error(
-          "Electron migration helper is missing. Build T4 first or pass --electron PATH.",
+      if (!electron) {
+        const runtime = NodeChildProcess.spawnSync(
+          process.execPath,
+          [NodePath.join(repository, "apps/desktop/scripts/ensure-electron-runtime.mjs")],
+          { cwd: NodePath.join(repository, "apps/desktop"), stdio: "inherit" },
         );
+        if (runtime.status !== 0 || !(await exists(candidates[0]!)))
+          throw new Error(
+            "Electron migration helper is missing. Build T4 first or pass --electron PATH.",
+          );
+        electron = candidates[0]!;
+      }
       await reencryptT4Credentials(incoming, staged, electron, lock, { merge: true, baseline });
     }
     await NodeFSP.rm(NodePath.join(staged, "server-runtime.json"), { force: true });
