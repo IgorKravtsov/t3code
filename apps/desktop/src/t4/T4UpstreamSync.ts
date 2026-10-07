@@ -130,13 +130,18 @@ export function startT4UpstreamSync(baseDir: string) {
     return state;
   };
 
-  const runBuildScript = async (source: string, args: ReadonlyArray<string>, log: number) =>
+  const runLogged = async (
+    source: string,
+    command: string,
+    args: ReadonlyArray<string>,
+    log: number,
+  ) =>
     new Promise<void>((resolve, reject) => {
-      const child = NodeChildProcess.spawn(
-        config!.node,
-        [NodePath.join(source, "scripts", "build-t4-local.ts"), "--in-place", ...args],
-        { cwd: source, env: buildEnvironment(config!), stdio: ["ignore", "pipe", "pipe"] },
-      );
+      const child = NodeChildProcess.spawn(command, args, {
+        cwd: source,
+        env: buildEnvironment(config!),
+        stdio: ["ignore", "pipe", "pipe"],
+      });
       let lastReport = 0;
       const onOutput = (chunk: Buffer) => {
         NodeFS.writeSync(log, chunk);
@@ -173,7 +178,19 @@ export function startT4UpstreamSync(baseDir: string) {
       source = await NodeFSP.mkdtemp(NodePath.join(config.buildRoot, "source-"));
       await git(config.repository, ["worktree", "add", "--detach", source, target]);
       progress("Building T4…");
-      await runBuildScript(source, ["--prepare-only", "--no-migrate"], log);
+      // The build script itself imports workspace packages.
+      await runLogged(source, "pnpm", ["install", "--frozen-lockfile"], log);
+      await runLogged(
+        source,
+        config.node,
+        [
+          NodePath.join(source, "scripts", "build-t4-local.ts"),
+          "--in-place",
+          "--prepare-only",
+          "--no-migrate",
+        ],
+        log,
+      );
 
       progress(`Pushing ${config.branch}…`);
       const localBranchProblem = await publishBranch(config.repository, config.branch, target);
