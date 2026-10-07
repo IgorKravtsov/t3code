@@ -306,3 +306,119 @@ it("sync CLI backs up and merges offline, preserves T4 settings and identity, an
   );
   await expect(run()).rejects.toThrow("T4 is running");
 });
+
+it("replace CLI restores a complete fresh T3 copy, including connections, and backs up T4-only data", async () => {
+  const paths = await fixture();
+  const directory = NodePath.dirname(paths.source);
+  const source = NodePath.join(directory, "t3");
+  const target = NodePath.join(directory, "t4");
+  for (const home of [source, target])
+    await NodeFSP.mkdir(NodePath.join(home, "userdata"), { recursive: true });
+  const db = new NodeSqlite.DatabaseSync(paths.target);
+  db.exec(
+    "INSERT INTO orchestration_events(sequence,event_id,aggregate_kind,stream_id,stream_version,event_type,application_event_version,payload_json) VALUES(3,'t4-only','thread','t4-only',0,'thread.created',2,'{}'); INSERT INTO orchestration_v2_projection_threads VALUES('t4-only','p','T4 only','{}');",
+  );
+  db.close();
+  await Promise.all([
+    NodeFSP.copyFile(paths.source, NodePath.join(source, "userdata/statev2.sqlite")),
+    NodeFSP.copyFile(paths.target, NodePath.join(target, "userdata/statev2.sqlite")),
+    NodeFSP.writeFile(
+      NodePath.join(source, "userdata/settings.json"),
+      '{"environmentName":"T3", "continueThreadsAfterServerUpdate":true}',
+    ),
+    NodeFSP.writeFile(
+      NodePath.join(target, "userdata/settings.json"),
+      '{"environmentName":"My T4"}',
+    ),
+    NodeFSP.writeFile(NodePath.join(source, "userdata/environment-id"), "t3-id"),
+    NodeFSP.writeFile(NodePath.join(target, "userdata/environment-id"), "t4-id"),
+    NodeFSP.writeFile(
+      NodePath.join(source, "userdata/saved-environments.json"),
+      JSON.stringify({
+        records: [
+          { environmentId: "omarchy", label: "omarchy", httpBaseUrl: "https://omarchy.example/" },
+          {
+            environmentId: "m1",
+            label: "M1",
+            sshTarget: { alias: "mac-m1-pro", host: "mac-m1-pro", user: null, port: null },
+          },
+        ],
+      }),
+    ),
+    NodeFSP.writeFile(
+      NodePath.join(target, "userdata/saved-environments.json"),
+      JSON.stringify({ records: [{ environmentId: "t4-only", label: "T4 only" }] }),
+    ),
+  ]);
+  const before = await NodeFSP.readFile(NodePath.join(source, "userdata/statev2.sqlite"));
+  const cli = NodeURL.fileURLToPath(new URL("../replace-t4-local.ts", import.meta.url));
+  const run = (extra: string[] = []) =>
+    new Promise<string>((resolve, reject) => {
+      const child = NodeChildProcess.spawn(
+        process.execPath,
+        [
+          cli,
+          "--source-home",
+          source,
+          "--target-home",
+          target,
+          "--electron",
+          NodePath.join(directory, "unused-helper"),
+          ...extra,
+        ],
+        { env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" }, stdio: "pipe" },
+      );
+      let output = "";
+      child.stdout.on("data", (chunk) => {
+        output += String(chunk);
+      });
+      child.stderr.on("data", (chunk) => {
+        output += String(chunk);
+      });
+      child.on("error", reject);
+      child.on("exit", (code) => (code === 0 ? resolve(output) : reject(new Error(output))));
+    });
+  expect(await run(["--dry-run"])).toContain('"mode": "replace"');
+  const untouched = new NodeSqlite.DatabaseSync(NodePath.join(target, "userdata/statev2.sqlite"), {
+    readOnly: true,
+  });
+  expect(
+    untouched.prepare("SELECT count(*) AS n FROM orchestration_v2_projection_threads").get()?.n,
+  ).toBe(2);
+  untouched.close();
+  expect(await run()).toContain('"replaced": true');
+  const replaced = new NodeSqlite.DatabaseSync(NodePath.join(target, "userdata/statev2.sqlite"), {
+    readOnly: true,
+  });
+  expect(
+    replaced.prepare("SELECT thread_id FROM orchestration_v2_projection_threads").all(),
+  ).toEqual([{ thread_id: "shared" }]);
+  replaced.close();
+  expect(
+    JSON.parse(await NodeFSP.readFile(NodePath.join(target, "userdata/settings.json"), "utf8")),
+  ).toMatchObject({ environmentName: "T3", continueThreadsAfterServerUpdate: false });
+  expect(await NodeFSP.readFile(NodePath.join(target, "userdata/environment-id"), "utf8")).toBe(
+    "t4-id",
+  );
+  expect(
+    JSON.parse(
+      await NodeFSP.readFile(NodePath.join(target, "userdata/saved-environments.json"), "utf8"),
+    ),
+  ).toEqual(
+    JSON.parse(
+      await NodeFSP.readFile(NodePath.join(source, "userdata/saved-environments.json"), "utf8"),
+    ),
+  );
+  expect(await NodeFSP.readFile(NodePath.join(source, "userdata/statev2.sqlite"))).toEqual(before);
+  const marker = JSON.parse(
+    await NodeFSP.readFile(NodePath.join(target, "last-sync.json"), "utf8"),
+  );
+  const old = new NodeSqlite.DatabaseSync(
+    NodePath.join(NodePath.dirname(marker.sourceSnapshot), "t4-userdata/statev2.sqlite"),
+    { readOnly: true },
+  );
+  expect(
+    old.prepare("SELECT count(*) AS n FROM orchestration_v2_projection_threads").get()?.n,
+  ).toBe(2);
+  old.close();
+});

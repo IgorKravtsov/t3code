@@ -129,7 +129,7 @@ export function databaseCounts(path: string) {
   }
 }
 
-async function prepareIndependentCopy(userdata: string) {
+export async function prepareIndependentCopy(userdata: string) {
   const settingsPath = NodePath.join(userdata, "settings.json");
   const settings = (await exists(settingsPath))
     ? JSON.parse(await NodeFSP.readFile(settingsPath, "utf8"))

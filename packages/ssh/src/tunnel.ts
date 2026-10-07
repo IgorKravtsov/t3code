@@ -78,6 +78,8 @@ export interface RemoteT3RunnerOptions {
    */
   readonly archiveVersion?: string | null;
   readonly releaseBaseUrl?: string | null;
+  /** Local forks can reuse the installed Persist service without replacing its runtime. */
+  readonly reusePersistentService?: boolean;
 }
 
 export interface SshEnvironmentManagerOptions {
@@ -436,6 +438,19 @@ if [ -n "$T3_NODE_SCRIPT_PATH" ]; then
   fi
   exec node "$T3_NODE_SCRIPT_PATH" "$@"
 fi
+if [ "@@T3_REUSE_PERSISTENT_SERVICE@@" = "1" ]; then
+  T3_SERVICE_STATE="$HOME/.t3/runtime/service-state.json"
+  T3_SERVICE_VERSION="$(sed -n 's/.*"activeVersion"[[:space:]]*:[[:space:]]*"\\([^" ]*\\)".*/\\1/p' "$T3_SERVICE_STATE" 2>/dev/null || true)"
+  case "$T3_SERVICE_VERSION" in
+    "" | *[!0-9A-Za-z.-]* | *..*) ;;
+    *)
+      T3_SERVICE_RUNTIME="$HOME/.t3/runtime/versions/$T3_SERVICE_VERSION"
+      if [ -x "$T3_SERVICE_RUNTIME/t3" ] && [ "$(cat "$T3_SERVICE_RUNTIME/.install-complete" 2>/dev/null)" = "$T3_SERVICE_VERSION" ]; then
+        exec "$T3_SERVICE_RUNTIME/t3" "$@"
+      fi
+      ;;
+  esac
+fi
 T3_ARCHIVE_VERSION=@@T3_ARCHIVE_VERSION@@
 if [ -z "$T3_ARCHIVE_VERSION" ]; then
   printf 'No t3 release version was provided for the remote runtime.\\n' >&2
@@ -640,7 +655,7 @@ if [ -n "$DEFAULT_REMOTE_PORT" ]; then
   if wait_ready "@@T3_REUSE_READY_TIMEOUT_MS@@"; then
     if [ "$REMOTE_MANAGED" = "managed" ]; then
       PID_TO_STOP="\${REMOTE_PID:-$DEFAULT_RUNTIME_PID}"
-      if [ -n "$PID_TO_STOP" ] && kill -0 "$PID_TO_STOP" 2>/dev/null; then
+      if [ -n "$PID_TO_STOP" ] && [ "$PID_TO_STOP" != "$DEFAULT_RUNTIME_PID" ] && kill -0 "$PID_TO_STOP" 2>/dev/null; then
         kill "$PID_TO_STOP" 2>/dev/null || true
         wait_for_pid_exit "$PID_TO_STOP"
       fi
@@ -804,6 +819,7 @@ export function buildRemoteT3RunnerScript(input?: RemoteT3RunnerOptions): string
     applyScriptPlaceholders(REMOTE_RUNNER_SCRIPT, {
       T3_NODE_SCRIPT_PATH: shellSingleQuote(nodeScriptPath),
       T3_ARCHIVE_VERSION: shellSingleQuote(archiveVersion),
+      T3_REUSE_PERSISTENT_SERVICE: input?.reusePersistentService === true ? "1" : "0",
       T3_RELEASE_BASE_URL: shellSingleQuote(releaseBaseUrl),
       T3_ARCHIVE_LOCK_WAIT_SECONDS: String(REMOTE_ARCHIVE_LOCK_WAIT_SECONDS),
       T3_ARCHIVE_DOWNLOAD_SECONDS: String(REMOTE_ARCHIVE_DOWNLOAD_SECONDS),

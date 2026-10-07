@@ -37,6 +37,10 @@ To merge a fresh local T3 snapshot into an existing T4 installation, quit T4 com
 ```
 
 From this checkout the equivalent is `node scripts/sync-t4-local.ts --launch`.
+To replace all T4 chats and settings instead of merging, use the separate command
+`~/.local/bin/t4-replace --launch` (`node scripts/replace-t4-local.ts --launch` from this
+checkout). `--dry-run` is available for both commands. Replacement removes T4-only data
+from the active copy; its complete backup remains under `~/.t4/sync-backups`.
 New chats, messages, projects, files and saved connections are imported; T4-only records
 and settings edited in T4 are retained. Unchanged settings receive T3 updates through a
 three-way merge against the previous snapshot. Repeating a sync does not duplicate events.
@@ -59,12 +63,14 @@ start new T4 conversations in new worktrees when working alongside T3. Migration
 machine's local data; it does not synchronize machines or copy browser-only connection storage
 from other devices. A macOS build runs on macOS and is locally signed rather than notarized.
 
-Saved remote connections are retained. Direct connections use the server already running at
-their address; features requiring new server capabilities need this branch on that server too.
-Managed SSH connections download the desktop's exact CLI release version. This local preview
-does not publish a CLI archive, so that bootstrap cannot download it and returns HTTP 404.
-Use a published release for managed SSH connections; this script builds and installs only the
-local application and does not deploy a runtime to other machines.
+Both transfer commands retain saved remote connection profiles, credentials, routes and
+disabled states. Persist is owned by the remote server's boot service, which stays installed
+and running when T4 quits; migration does not copy, restart or uninstall that service.
+The local fork's SSH runner reuses the remote's installed Persist runtime and connects to
+its existing server, so a working connection does not require a published T4 archive.
+Direct connections also use their existing server. New server capabilities still require
+this branch on that server. Without an installed Persist runtime, SSH bootstrap needs the
+desktop's exact published CLI archive; a local unpublished preview cannot provide it.
 
 ## What the workflow does
 

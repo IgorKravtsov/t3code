@@ -217,3 +217,16 @@ index d6632355e3..a546db36d5 100644
      version: appVersion,
      buildVersion: appVersion,
      t3codeCommitHash: commitHash,
+diff --git a/apps/desktop/src/main.ts b/apps/desktop/src/main.ts
+--- a/apps/desktop/src/main.ts
++++ b/apps/desktop/src/main.ts
+@@ -110,8 +110,8 @@ const resolveDesktopSshCliRunner = (
+   if (environment.isDevelopment && devRemoteEntryPath !== undefined) {
+     return {
+       nodeScriptPath: devRemoteEntryPath,
+       nodeEngineRange: serverPackageJson.engines.node,
+     };
+   }
+-  return { archiveVersion: environment.appVersion };
++  return { archiveVersion: environment.appVersion, reusePersistentService: true };
+ };

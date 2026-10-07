@@ -16,6 +16,7 @@ import { HttpClient, HttpClientResponse } from "effect/http";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
 import * as SshAuth from "./auth.ts";
+import { remoteStateKey } from "./command.ts";
 import { SshCommandError } from "./errors.ts";
 import * as SshTunnel from "./tunnel.ts";
 
@@ -701,11 +702,11 @@ describe("archive runner script", () => {
   const windowsHost = hostPlatform === "win32";
   const archiveVersion = "1.2.3-preview.20260911.4";
 
-  const runRunner = (home: string, runner: string) =>
+  const runRunner = (home: string, runner: string, args: ReadonlyArray<string> = ["--version"]) =>
     Effect.gen(function* () {
       const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
       const child = yield* spawner.spawn(
-        ChildProcess.make("sh", [runner, "--version"], {
+        ChildProcess.make("sh", [runner, ...args], {
           env: { PATH: process.env.PATH ?? "", HOME: home },
           extendEnv: false,
         }),
@@ -755,6 +756,107 @@ describe("archive runner script", () => {
     assert.equal(Number(yield* child.exitCode), 0);
     return `file://${root}/mirror`;
   });
+
+  it.effect.skipIf(windowsHost)(
+    "reuses the installed Persist runtime without downloading a fork preview; default runners stay pinned",
+    () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const root = yield* fs.makeTempDirectoryScoped({ prefix: "t4-persist-runner-" });
+        const home = `${root}/home`;
+        const runtime = `${home}/.t3/runtime/versions/1.0.0`;
+        yield* fs.makeDirectory(runtime, { recursive: true });
+        yield* fs.writeFileString(
+          `${home}/.t3/runtime/service-state.json`,
+          '{"protocol":3,"activeVersion":"1.0.0"}',
+        );
+        yield* fs.writeFileString(`${runtime}/.install-complete`, "1.0.0");
+        yield* fs.writeFileString(`${runtime}/t3`, "#!/bin/sh\necho persistent-runtime\n");
+        yield* fs.chmod(`${runtime}/t3`, 0o755);
+        const runner = `${root}/runner.sh`;
+        yield* fs.writeFileString(
+          runner,
+          SshTunnel.buildRemoteT3RunnerScript({
+            ...ARCHIVE,
+            reusePersistentService: true,
+            releaseBaseUrl: "file:///missing-preview",
+          }),
+        );
+        const reused = yield* runRunner(home, runner);
+        assert.equal(reused.exitCode, 0, reused.stderr);
+        assert.equal(reused.stdout.trim(), "persistent-runtime");
+        assert.deepEqual(yield* fs.readDirectory(`${home}/.t3/runtime/versions`), ["1.0.0"]);
+        const releaseBaseUrl = yield* makeMirror(root);
+        yield* fs.writeFileString(
+          runner,
+          SshTunnel.buildRemoteT3RunnerScript({ ...ARCHIVE, releaseBaseUrl }),
+        );
+        const pinned = yield* runRunner(home, runner);
+        assert.equal(pinned.exitCode, 0, pinned.stderr);
+        assert.include(pinned.stdout, `t3 v${archiveVersion}`);
+      }).pipe(Effect.provide(NodeServices.layer)),
+  );
+
+  it.effect.skipIf(windowsHost)(
+    "keeps a Persist service alive during reconnect, pairing, and client disconnect even with stale ownership files",
+    () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+        const worker = yield* spawner.spawn(ChildProcess.make("sleep", ["600"]));
+        yield* Effect.addFinalizer(() => worker.kill().pipe(Effect.ignore));
+        const root = yield* fs.makeTempDirectoryScoped({ prefix: "t4-persist-lifecycle-" });
+        const home = `${root}/home`;
+        const runtime = `${home}/.t3/runtime/versions/1.0.0`;
+        const target = { alias: "persist", hostname: "localhost", username: null, port: null };
+        const key = remoteStateKey(target);
+        const state = `${home}/.t3/ssh-launch/${key}`;
+        yield* fs.makeDirectory(runtime, { recursive: true });
+        yield* fs.makeDirectory(state, { recursive: true });
+        yield* fs.writeFileString(
+          `${home}/.t3/runtime/service-state.json`,
+          '{"protocol":3,"activeVersion":"1.0.0"}',
+        );
+        yield* fs.writeFileString(`${runtime}/.install-complete`, "1.0.0");
+        yield* fs.writeFileString(
+          `${runtime}/t3`,
+          `#!/bin/sh
+case "$1:$2" in
+--version:*) echo persistent ;;
+__ssh-helper:runtime-port) echo '${worker.pid} 3773' ;;
+__ssh-helper:wait-ready) exit 0 ;;
+auth:pairing) echo '{"token":"fixture-token"}' ;;
+*) exit 1 ;;
+esac
+`,
+        );
+        yield* fs.chmod(`${runtime}/t3`, 0o755);
+        yield* fs.writeFileString(`${state}/managed`, "managed");
+        yield* fs.writeFileString(`${state}/pid`, String(worker.pid));
+        yield* fs.writeFileString(`${state}/port`, "3773");
+        const runner = {
+          ...ARCHIVE,
+          reusePersistentService: true,
+          releaseBaseUrl: "file:///missing-preview",
+        };
+        const launch = `${root}/launch.sh`;
+        yield* fs.writeFileString(launch, SshTunnel.buildRemoteLaunchScript(runner));
+        const connected = yield* runRunner(home, launch, [key]);
+        assert.equal(connected.exitCode, 0, connected.stderr);
+        assert.include(connected.stdout, '"serverKind":"external"');
+        assert.isTrue(yield* worker.isRunning);
+        const pairing = `${root}/pairing.sh`;
+        yield* fs.writeFileString(pairing, SshTunnel.buildRemotePairingScript(target, runner));
+        const paired = yield* runRunner(home, pairing);
+        assert.equal(paired.exitCode, 0, paired.stderr);
+        assert.include(paired.stdout, "fixture-token");
+        const stop = `${root}/stop.sh`;
+        yield* fs.writeFileString(stop, SshTunnel.buildRemoteStopScript(target));
+        const disconnected = yield* runRunner(home, stop);
+        assert.equal(disconnected.exitCode, 0, disconnected.stderr);
+        assert.isTrue(yield* worker.isRunning);
+      }).pipe(Effect.provide(NodeServices.layer)),
+  );
 
   it.effect.skipIf(windowsHost)(
     "installs once when several launches race, and reclaims stale locks",

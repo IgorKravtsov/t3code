@@ -189,11 +189,16 @@ await NodeFSP.writeFile(
     : `#!/bin/sh\nexport T3CODE_HOME=${shellQuote(t4Home)}\nunset ELECTRON_RUN_AS_NODE T3_SERVICE_LAUNCHER_CONTEXT T3_BOOT_SERVICE_UNIT\nexec ${shellQuote(executable)} "$@"\n`,
   { mode: 0o755 },
 );
-await NodeFSP.writeFile(
-  NodePath.join(bin, "t4-sync"),
-  `#!/bin/sh\nexec ${shellQuote(process.execPath)} ${shellQuote(NodePath.join(worktree, "scripts/sync-t4-local.ts"))} "$@"\n`,
-  { mode: 0o755 },
-);
+for (const [command, script] of [
+  ["t4-sync", "sync-t4-local.ts"],
+  ["t4-replace", "replace-t4-local.ts"],
+])
+  await NodeFSP.writeFile(
+    NodePath.join(bin, command!),
+    `#!/bin/sh\nexec ${shellQuote(process.execPath)} ${shellQuote(NodePath.join(worktree, "scripts", script!))} "$@"\n`,
+    { mode: 0o755 },
+  );
+
 if (platform === "linux") {
   await NodeFSP.copyFile(
     NodePath.join(worktree, "apps", "desktop", "resources", "icon.png"),
