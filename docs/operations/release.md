@@ -28,6 +28,18 @@ credentials and login tokens with T4's OS keyring key. Run from an unlocked grap
 when protected credentials exist. Existing T4 data is preserved on subsequent builds;
 `--no-migrate` starts with independent empty data instead.
 
+The installed app records its source checkout in `~/.t4/t4-source.json` and checks
+`upstream/main` against the `t4-code` branch at startup and at 09:00 and 18:00 while it runs
+(the merge icon in the sidebar footer, which also checks on demand). It lists the new T3 commits
+and whether they merge cleanly; conflicting files are listed and the update stays unavailable
+until `t4-code` is reconciled by hand. **Merge & rebuild** creates the merge commit without
+touching any checkout, builds it in a new worktree, pushes `t4-code` to `origin`, fast-forwards
+the local branch, then installs and relaunches T4 after it quits. The branch moves only after a
+successful build; the build log is `~/.t4/t4-update.log`. When `origin/t4-code` is ahead of the
+installed build (for example, merged on another machine), the same control offers **Rebuild**.
+Pushing over HTTPS falls back to the `gh` login. Older source worktrees and all but the last
+previous application copy are removed after each installation.
+
 To merge a fresh local T3 snapshot into an existing T4 installation, quit T4 completely
 (T3 may keep running), then run on either Linux or macOS:
 

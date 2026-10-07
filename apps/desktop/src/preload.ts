@@ -10,6 +10,7 @@ import { exposeClerkBridge } from "@clerk/electron/preload";
 import { contextBridge, ipcRenderer, webFrame, webUtils } from "electron";
 
 import * as IpcChannels from "./ipc/channels.ts";
+import * as T4UpstreamChannels from "./t4/t4UpstreamChannels.ts";
 import { mergeLegacyLocalStorage } from "./legacyLocalStorageMerge.ts";
 
 const SNAP_SHOT_EVENT_TYPES = new Set([
@@ -278,6 +279,21 @@ contextBridge.exposeInMainWorld("desktopBridge", {
     return () => {
       ipcRenderer.removeListener(IpcChannels.UPDATE_STATE_CHANNEL, wrappedListener);
     };
+  },
+  t4Upstream: {
+    getState: () => ipcRenderer.invoke(T4UpstreamChannels.T4_UPSTREAM_GET_STATE_CHANNEL),
+    check: () => ipcRenderer.invoke(T4UpstreamChannels.T4_UPSTREAM_CHECK_CHANNEL),
+    update: () => ipcRenderer.invoke(T4UpstreamChannels.T4_UPSTREAM_UPDATE_CHANNEL),
+    onState: (listener) => {
+      const wrappedListener = (_event: Electron.IpcRendererEvent, state: unknown) => {
+        if (typeof state !== "object" || state === null) return;
+        listener(state as Parameters<typeof listener>[0]);
+      };
+      ipcRenderer.on(T4UpstreamChannels.T4_UPSTREAM_STATE_CHANNEL, wrappedListener);
+      return () => {
+        ipcRenderer.removeListener(T4UpstreamChannels.T4_UPSTREAM_STATE_CHANNEL, wrappedListener);
+      };
+    },
   },
   appActivation: {
     setReady: (ready) =>

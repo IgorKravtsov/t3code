@@ -28,6 +28,7 @@ import { isSidebarUtilityPage, useNavigateToMainApp } from "./mainAppLocation";
 import { SidebarThreadUndoNotice } from "./SidebarThreadUndoNotice";
 import { SidebarProviderUpdatePill } from "./SidebarProviderUpdatePill";
 import { SidebarUpdateArchitectureWarning, SidebarUpdatePill } from "./SidebarUpdatePill";
+import { T4UpstreamPill } from "./T4UpstreamPill";
 import { PullRequestGlyph } from "~/components/pullRequest/pullRequestIcons";
 
 export const SidebarChromeHeader = memo(function SidebarChromeHeader({
@@ -232,6 +233,7 @@ export const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
         </>
       )}
       <SidebarUpdatePill />
+      <T4UpstreamPill />
     </SidebarMenu>
   );
 });

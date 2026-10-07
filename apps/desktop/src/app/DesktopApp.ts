@@ -31,6 +31,7 @@ import * as DesktopShellEnvironment from "../shell/DesktopShellEnvironment.ts";
 import * as DesktopState from "./DesktopState.ts";
 import * as DesktopRemoteUpdates from "../updates/DesktopRemoteUpdates.ts";
 import * as DesktopUpdates from "../updates/DesktopUpdates.ts";
+import { startT4UpstreamSync } from "../t4/T4UpstreamSync.ts";
 import * as DesktopSnapShot from "../snapShot/DesktopSnapShot.ts";
 import * as DesktopWslBackend from "../wsl/DesktopWslBackend.ts";
 import * as DesktopRendererHistory from "../telemetry/DesktopRendererHistory.ts";
@@ -331,6 +332,7 @@ const startup = Effect.gen(function* () {
   yield* appIdentity.configure;
   yield* applicationMenu.configure;
   yield* updates.configure;
+  yield* Effect.sync(() => startT4UpstreamSync(environment.baseDir));
   yield* DesktopRemoteUpdates.listen;
   yield* linuxUrlHandler.register;
   yield* bootstrap.pipe(Effect.catchCause((cause) => fatalStartupCause("bootstrap", cause)));
