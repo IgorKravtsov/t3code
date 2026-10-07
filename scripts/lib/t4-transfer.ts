@@ -194,10 +194,7 @@ export async function transferT4Local(mode: "merge" | "replace") {
           typeof override === "object" &&
           override !== null
         )
-          Object.assign(override, {
-            continueThreadsAfterServerUpdate: false,
-            worktreeCleanup: { mode: "off" },
-          });
+          Object.assign(override, { continueThreadsAfterServerUpdate: false });
       }
       await NodeFSP.writeFile(settingsPath, JSON.stringify(settings, null, 2) + "\n", {
         mode: 0o600,

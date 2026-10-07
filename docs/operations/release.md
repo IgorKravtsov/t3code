@@ -68,9 +68,9 @@ and files without replacing T4 or accessing the keyring. Run the command separat
 each machine to import its local T3 data; it does not transfer databases between machines.
 Existing non-JSON files with the same path retain the T4 copy; the T3 copy remains in the backup.
 
-The copied environment gets its own identity. Automatic agent continuation, scheduled tasks,
-and worktree cleanup are disabled in the active copy; their original values remain in the
-snapshot. Existing Git worktrees retain their paths and are shared working directories, so
+The copied environment gets its own identity. Automatic agent continuation and scheduled tasks
+are disabled in the active copy; their original values remain in the snapshot. Worktree cleanup
+keeps T3's settings. Existing Git worktrees retain their paths and are shared working directories, so
 start new T4 conversations in new worktrees when working alongside T3. Migration copies this
 machine's local data; it does not synchronize machines or copy browser-only connection storage
 from other devices. A macOS build runs on macOS and is locally signed rather than notarized.

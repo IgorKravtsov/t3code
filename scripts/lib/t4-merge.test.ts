@@ -285,7 +285,7 @@ it("sync CLI backs up and merges offline, preserves T4 settings and identity, an
     environmentName: "My T4",
     color: "new",
     projectSettingsOverrides: {
-      new: { continueThreadsAfterServerUpdate: false, worktreeCleanup: { mode: "off" } },
+      new: { continueThreadsAfterServerUpdate: false },
     },
   });
   expect(await NodeFSP.readFile(NodePath.join(target, "userdata/environment-id"), "utf8")).toBe(

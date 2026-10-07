@@ -134,24 +134,13 @@ export async function prepareIndependentCopy(userdata: string) {
   const settings = (await exists(settingsPath))
     ? JSON.parse(await NodeFSP.readFile(settingsPath, "utf8"))
     : {};
+  // Both apps would otherwise resume the same threads. Worktree cleanup stays as configured
+  // in T3: it keeps worktrees with local changes, and branches and history survive it.
   settings.continueThreadsAfterServerUpdate = false;
   settings.autoResumeLimitedThreads = false;
-  settings.worktreeCleanup = { mode: "off" };
-  settings.storageCleanup = {
-    worktreeAfterDays: null,
-    worktreeOnMerge: false,
-    worktreeOnDelete: false,
-    worktreeUnchanged: false,
-    browserArtifactsAfterDays: null,
-    logsAfterDays: null,
-  };
   for (const override of Object.values(settings.projectSettingsOverrides ?? {})) {
-    if (typeof override === "object" && override !== null) {
-      Object.assign(override, {
-        continueThreadsAfterServerUpdate: false,
-        worktreeCleanup: { mode: "off" },
-      });
-    }
+    if (typeof override === "object" && override !== null)
+      Object.assign(override, { continueThreadsAfterServerUpdate: false });
   }
   await NodeFSP.writeFile(settingsPath, JSON.stringify(settings, null, 2) + "\n", { mode: 0o600 });
   await NodeFSP.writeFile(

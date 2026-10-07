@@ -3,6 +3,7 @@ import { resolveWorktreeCleanup } from "@t3tools/shared/projectSettings";
 import { useRef, useState } from "react";
 
 import { Input } from "../ui/input";
+import { toastManager } from "../ui/toast";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { Switch } from "../ui/switch";
 import {
@@ -29,6 +30,10 @@ import {
   useUpdateScopedSettings,
 } from "./useScopedSettings";
 
+/** Upstream T3 servers accept any string here but only create worktrees under an absolute path. */
+const isAbsoluteWorktreesDirectory = (value: string) =>
+  value === "" || /^(\/|~|[A-Za-z]:[\\/]|\\\\)/.test(value);
+
 export function WorktreesDirectoryRow() {
   const { connectedEnvironments, targets, scope } = useSettingsScope();
   const isProjectScope = scope.kind === "project" || scope.kind === "checkout";
@@ -45,13 +50,19 @@ export function WorktreesDirectoryRow() {
     )
   )
     return null;
+  const relativeSupported = connectedEnvironments.every(
+    (environment) =>
+      environment.serverConfig?.environment.capabilities.projectWorktreeDefaults === true,
+  );
   const scopeKey = targets.map((target) => `${target.environmentId}:${target.projectId}`).join(",");
 
   return (
     <SettingsRow
       {...searchableSetting("storage-worktrees-location")}
       description={
-        "Folder where new worktrees are created, such as ../worktrees (relative to the project), /data/worktrees, D:\\worktrees or ~/worktrees. Existing worktrees stay where they are. Leave empty to use the T3 home folder."
+        relativeSupported
+          ? "Folder where new worktrees are created, such as ../worktrees (relative to the project), /data/worktrees, D:\\worktrees or ~/worktrees. Existing worktrees stay where they are. Leave empty to use the T3 home folder."
+          : "Folder where new worktrees are created, on any drive, such as D:\\worktrees or ~/worktrees. Existing worktrees stay where they are. Leave empty to use the T3 home folder."
       }
       serverScoped
       settingKeys={["worktreesDirectory"]}
@@ -76,6 +87,17 @@ export function WorktreesDirectoryRow() {
           }}
           onBlur={(event) => {
             const value = event.target.value.trim();
+            if (edited.current && !relativeSupported && !isAbsoluteWorktreesDirectory(value)) {
+              edited.current = false;
+              event.target.value = mixed ? "" : settings.worktreesDirectory;
+              toastManager.add({
+                type: "error",
+                title: "Worktree location must be absolute here",
+                description:
+                  "A selected environment runs a server that only supports absolute folders, such as ~/worktrees. Relative locations need T4 servers.",
+              });
+              return;
+            }
             if (edited.current && (mixed || value !== settings.worktreesDirectory))
               updateSettings({ worktreesDirectory: value });
             edited.current = false;
