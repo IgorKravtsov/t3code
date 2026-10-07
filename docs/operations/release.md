@@ -28,6 +28,30 @@ credentials and login tokens with T4's OS keyring key. Run from an unlocked grap
 when protected credentials exist. Existing T4 data is preserved on subsequent builds;
 `--no-migrate` starts with independent empty data instead.
 
+To merge a fresh local T3 snapshot into an existing T4 installation, quit T4 completely
+(T3 may keep running), then run on either Linux or macOS:
+
+```sh
+~/.local/bin/t4-sync --dry-run
+~/.local/bin/t4-sync --launch
+```
+
+From this checkout the equivalent is `node scripts/sync-t4-local.ts --launch`.
+New chats, messages, projects, files and saved connections are imported; T4-only records
+and settings edited in T4 are retained. Unchanged settings receive T3 updates through a
+three-way merge against the previous snapshot. Repeating a sync does not duplicate events.
+Every run retains both complete userdata snapshots under `~/.t4/sync-backups`.
+Connections are re-encrypted with T4's OS keyring key; macOS may request access to the T3 key.
+Newly imported scheduled tasks and pending agent work are disabled so both apps do not
+execute the same work. T4 keeps its own environment identity and authentication sessions.
+
+If both apps independently change the same chat's domain history, or database schemas are
+incompatible, the script stops before replacing T4. Both snapshots remain in the backup;
+automatic reconciliation of conflicting runs is not supported. A dry run checks databases
+and files without replacing T4 or accessing the keyring. Run the command separately on
+each machine to import its local T3 data; it does not transfer databases between machines.
+Existing non-JSON files with the same path retain the T4 copy; the T3 copy remains in the backup.
+
 The copied environment gets its own identity. Automatic agent continuation, scheduled tasks,
 and worktree cleanup are disabled in the active copy; their original values remain in the
 snapshot. Existing Git worktrees retain their paths and are shared working directories, so

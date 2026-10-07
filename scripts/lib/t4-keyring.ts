@@ -5,20 +5,27 @@ import * as NodeChildProcess from "node:child_process";
 import { HostProcessPlatform } from "@t3tools/shared/hostProcess";
 import * as Effect from "effect/Effect";
 import { exists } from "./t4-state.ts";
+import { mergeT4Values } from "./t4-merge.ts";
 
 export async function reencryptT4Credentials(
   source: string,
   destination: string,
   electron: string,
   temporary: string,
+  options: { merge?: boolean; baseline?: string } = {},
 ) {
   const files: Array<{ path: string; document: Record<string, unknown> }> = [];
-  const fields: Array<{ ciphertext: string; replace: (value: string) => void }> = [];
+  const fields: Array<{
+    ciphertext: string;
+    key: string;
+    replace: (value: string) => void;
+  }> = [];
   const addField = (document: Record<string, unknown>, key: string, prefix = "") => {
     const value = document[key];
     if (typeof value !== "string" || !value.startsWith(prefix)) return;
     fields.push({
       ciphertext: value.slice(prefix.length),
+      key,
       replace: (encrypted) => {
         document[key] = prefix + encrypted;
       },
@@ -38,7 +45,25 @@ export async function reencryptT4Credentials(
       }
     }
   }
-  if (fields.length === 0) return;
+  async function writeFiles() {
+    for (const file of files) {
+      const current: unknown =
+        options.merge && (await exists(file.path))
+          ? JSON.parse(await NodeFSP.readFile(file.path, "utf8"))
+          : undefined;
+      const document =
+        options.merge && NodePath.basename(file.path) !== "connection-catalog.json"
+          ? mergeT4Values(file.document, current, undefined)
+          : file.document;
+      await NodeFSP.writeFile(file.path, JSON.stringify(document, null, 2) + "\n", {
+        mode: 0o600,
+      });
+    }
+  }
+  if (fields.length === 0) {
+    await writeFiles();
+    return;
+  }
   const helper = await NodeFSP.mkdtemp(NodePath.join(temporary, "credentials-"));
   await NodeFSP.writeFile(
     NodePath.join(helper, "package.json"),
@@ -194,6 +219,7 @@ process.stdin.on('end',()=>void run());
   }
   try {
     let plaintext: string[] | undefined;
+    let sourceKeyring = "t3code";
     for (const name of ["t3code", "T3 Code (Nightly)", "T3 Code (Alpha)", "T3 Code"]) {
       try {
         plaintext = await transform(
@@ -201,6 +227,7 @@ process.stdin.on('end',()=>void run());
           "decrypt",
           fields.map((field) => field.ciphertext),
         );
+        sourceKeyring = name;
         break;
       } catch (cause) {
         if (name === "T3 Code") throw cause;
@@ -211,12 +238,33 @@ process.stdin.on('end',()=>void run());
       throw new Error(
         "Could not decrypt source credentials with the OS keyring. The source snapshot is preserved; retry from an unlocked graphical session.",
       );
+    if (options.merge) {
+      for (const [index, field] of fields.entries()) {
+        if (field.key !== "encryptedCatalog") continue;
+        const path = NodePath.join(destination, "connection-catalog.json");
+        if (!(await exists(path))) continue;
+        const current = JSON.parse(await NodeFSP.readFile(path, "utf8")) as {
+          encryptedCatalog: string;
+        };
+        const [existing] = await transform("t4code", "decrypt", [current.encryptedCatalog]);
+        let original: unknown;
+        const baselinePath =
+          options.baseline && NodePath.join(options.baseline, "connection-catalog.json");
+        if (baselinePath && (await exists(baselinePath))) {
+          const previous = JSON.parse(await NodeFSP.readFile(baselinePath, "utf8")) as {
+            encryptedCatalog: string;
+          };
+          const [value] = await transform(sourceKeyring, "decrypt", [previous.encryptedCatalog]);
+          original = JSON.parse(value!);
+        }
+        plaintext[index] = JSON.stringify(
+          mergeT4Values(JSON.parse(plaintext[index]!), JSON.parse(existing!), original),
+        );
+      }
+    }
     const encrypted = await transform("t4code", "encrypt", plaintext);
     fields.forEach((field, index) => field.replace(encrypted[index]!));
-    for (const file of files)
-      await NodeFSP.writeFile(file.path, JSON.stringify(file.document, null, 2) + "\n", {
-        mode: 0o600,
-      });
+    await writeFiles();
   } finally {
     await NodeFSP.rm(helper, { recursive: true, force: true });
   }

@@ -68,6 +68,7 @@ if (Number(rustVersion[1]) === 1 && Number(rustVersion[2]) < 95) {
 await run("git", ["worktree", "add", "--detach", worktree, "HEAD"], repository);
 await run("git", ["apply", NodePath.join(repository, "scripts", "lib", "t4-branding.patch")]);
 await run("pnpm", ["install", "--frozen-lockfile"]);
+await run("node", ["scripts/brand-t4.mjs", worktree]);
 const sourceVersion = JSON.parse(
   await NodeFSP.readFile(NodePath.join(worktree, "apps/server/package.json"), "utf8"),
 ).version.split("-")[0];
@@ -186,6 +187,11 @@ await NodeFSP.writeFile(
   platform === "mac"
     ? `#!/bin/sh\nexec /usr/bin/open -a ${shellQuote(install)} --env ${shellQuote("T3CODE_HOME=" + t4Home)} --args "$@"\n`
     : `#!/bin/sh\nexport T3CODE_HOME=${shellQuote(t4Home)}\nunset ELECTRON_RUN_AS_NODE\nexec ${shellQuote(executable)} "$@"\n`,
+  { mode: 0o755 },
+);
+await NodeFSP.writeFile(
+  NodePath.join(bin, "t4-sync"),
+  `#!/bin/sh\nexec ${shellQuote(process.execPath)} ${shellQuote(NodePath.join(worktree, "scripts/sync-t4-local.ts"))} "$@"\n`,
   { mode: 0o755 },
 );
 if (platform === "linux") {
