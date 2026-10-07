@@ -5,12 +5,15 @@ import { ExecutionEnvironmentDescriptor } from "./environment.ts";
 import {
   resolveEnvironmentMachineKind,
   ServerConfig,
+  ServerConfigSettingsUpdatedPayload,
   ServerObservability,
   ServerProvider,
   ServerProviders,
   ServerUpsertKeybindingResult,
 } from "./server.ts";
 import { ServerSettings } from "./settings.ts";
+
+const decodeSettingsUpdate = Schema.decodeUnknownSync(ServerConfigSettingsUpdatedPayload);
 
 const decodeServerProvider = Schema.decodeUnknownSync(ServerProvider);
 const decodeServerProviders = Schema.decodeUnknownSync(ServerProviders);
@@ -29,6 +32,23 @@ const baseProviderSnapshot = {
   checkedAt: "2026-04-10T00:00:00.000Z",
   models: [],
 };
+
+describe("settings name updates", () => {
+  it("accepts older servers and carries the effective name separately from the override", () => {
+    expect(decodeSettingsUpdate({ settings: {} }).environmentLabel).toBeUndefined();
+    const renamed = decodeSettingsUpdate({
+      settings: { environmentName: "Ноутбук M4 Air" },
+      environmentLabel: "Ноутбук M4 Air",
+    });
+    expect(renamed.environmentLabel).toBe("Ноутбук M4 Air");
+    const reset = decodeSettingsUpdate({
+      settings: { environmentName: "" },
+      environmentLabel: "Detected host",
+    });
+    expect(reset.settings.environmentName).toBe("");
+    expect(reset.environmentLabel).toBe("Detected host");
+  });
+});
 
 describe("ServerProvider", () => {
   it.each([undefined, true, false])("decodes workspace command discovery pending=%s", (pending) => {

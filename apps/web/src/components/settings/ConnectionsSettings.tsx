@@ -75,6 +75,7 @@ import {
 } from "./settingsLayout";
 import { LocalEnvironmentSetting } from "./LocalEnvironmentSetting";
 import { searchableSetting } from "./settingsSearch";
+import { EnvironmentNameDialog } from "./EnvironmentNameDialog";
 import { EnvironmentIconMenu } from "./EnvironmentIconPicker";
 import { EnvironmentRoutesList } from "./EnvironmentRoutesList";
 import { usePreparedConnection } from "~/state/session";
@@ -1495,6 +1496,7 @@ function SavedBackendListRow({
   onAddRoute,
 }: SavedBackendListRowProps) {
   const [routesOpen, setRoutesOpen] = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
   const environmentId = environment.environmentId;
   const unsupported = environment.connection.phase === "unsupported";
   const enabled = environment.entry.enabled && !unsupported;
@@ -1703,6 +1705,7 @@ function SavedBackendListRow({
           <EllipsisIcon className="size-3.5" />
         </MenuTrigger>
         <MenuPopup align="end">
+          <MenuItem onClick={() => setRenameOpen(true)}>Rename…</MenuItem>
           <EnvironmentIconMenu
             environmentId={environmentId}
             serverConfig={environment.serverConfig}
@@ -1720,6 +1723,14 @@ function SavedBackendListRow({
           </MenuItem>
         </MenuPopup>
       </Menu>
+      {renameOpen ? (
+        <EnvironmentNameDialog
+          environmentId={environmentId}
+          serverConfig={environment.serverConfig}
+          open={renameOpen}
+          onOpenChange={setRenameOpen}
+        />
+      ) : null}
     </EnvironmentRow>
   );
 }
@@ -1926,6 +1937,7 @@ function CloudRemoteEnvironmentRows({
 }
 
 export function ConnectionsSettings() {
+  const [primaryRenameOpen, setPrimaryRenameOpen] = useState(false);
   const desktopBridge = window.desktopBridge;
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const { environments } = useEnvironments();
@@ -3492,6 +3504,7 @@ export function ConnectionsSettings() {
                     <EllipsisIcon className="size-3.5" />
                   </MenuTrigger>
                   <MenuPopup align="end">
+                    <MenuItem onClick={() => setPrimaryRenameOpen(true)}>Rename…</MenuItem>
                     <EnvironmentIconMenu
                       environmentId={primaryEnvironmentId}
                       serverConfig={primaryServerConfig}
@@ -3501,6 +3514,15 @@ export function ConnectionsSettings() {
               ) : null
             }
           >
+            {primaryRenameOpen && primaryEnvironmentId !== null ? (
+              <EnvironmentNameDialog
+                key={primaryEnvironmentId}
+                environmentId={primaryEnvironmentId}
+                serverConfig={primaryServerConfig}
+                open={primaryRenameOpen}
+                onOpenChange={setPrimaryRenameOpen}
+              />
+            ) : null}
             <LocalEnvironmentSetting />
             {canManageLocalBackend ? (
               <SettingsRow
@@ -3860,7 +3882,26 @@ export function ConnectionsSettings() {
           </Dialog>
         </>
       ) : (
-        <SettingsSection {...searchableSetting("connections-environment")}>
+        <SettingsSection
+          {...searchableSetting("connections-environment")}
+          title={primaryEnvironment?.label ?? "Primary environment"}
+          headerAction={
+            primaryEnvironmentId !== null ? (
+              <Button variant="outline" size="xs" onClick={() => setPrimaryRenameOpen(true)}>
+                Rename…
+              </Button>
+            ) : null
+          }
+        >
+          {primaryRenameOpen && primaryEnvironmentId !== null ? (
+            <EnvironmentNameDialog
+              key={primaryEnvironmentId}
+              environmentId={primaryEnvironmentId}
+              serverConfig={primaryServerConfig}
+              open={primaryRenameOpen}
+              onOpenChange={setPrimaryRenameOpen}
+            />
+          ) : null}
           <SettingsRow
             title="Administrative access"
             description="Pairing links and client-session management require the access:write scope for this backend."

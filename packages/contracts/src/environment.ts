@@ -205,6 +205,8 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
       setting. Older servers drop the key on write, so clients show the
       picker inert rather than offering a choice that would never stick. */
   environmentIcon: Schema.optionalKey(Schema.Boolean),
+  /** Environment-owned name and live name updates are supported. */
+  environmentName: Schema.optionalKey(Schema.Boolean),
   /** The desktop app supervising this server can be driven over RPC:
       server.updateServer runs its check -> download -> relaunch. Absent on
       desktop servers whose app predates the remote trigger, where clients

@@ -73,6 +73,10 @@ export function applyServerConfigProjection(
         config: {
           ...projection.config,
           settings: event.payload.settings,
+          environment:
+            event.payload.environmentLabel === undefined
+              ? projection.config.environment
+              : { ...projection.config.environment, label: event.payload.environmentLabel },
         },
         latestEvent: event,
         source: "live",

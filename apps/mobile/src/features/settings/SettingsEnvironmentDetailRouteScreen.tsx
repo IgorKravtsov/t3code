@@ -14,6 +14,7 @@ import { serverEnvironment } from "../../state/server";
 import { environmentSession } from "../../state/session";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { useRemoteConnections } from "../../state/use-remote-environment-registry";
+import { EnvironmentNameSetting } from "./EnvironmentNameSetting";
 import { ConnectionEnvironmentRow } from "../connection/ConnectionEnvironmentRow";
 import { EnvironmentRoutesSection } from "./EnvironmentRoutesSection";
 import { SettingsActionRow } from "./components/SettingsActionRow";
@@ -169,6 +170,11 @@ function EnvironmentDetail({ environmentId }: { readonly environmentId: Environm
                 onUpdate={connections.onUpdateEnvironment}
               />
             </SettingsSection>
+            <EnvironmentNameSetting
+              environmentId={environmentId}
+              config={config}
+              allowed={allowed}
+            />
             <EnvironmentRoutesSection
               environmentId={environmentId}
               connected={connected}

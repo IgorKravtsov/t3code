@@ -14,6 +14,7 @@ import {
   type EnvironmentConnectionPhase,
   type EnvironmentPresentation,
 } from "../connection/presentation.ts";
+import type { ConnectionCatalogEntry } from "../connection/catalog.ts";
 import type { EnvironmentCatalogState } from "./connections.ts";
 import { hasRelayRoute } from "../connection/routes.ts";
 
@@ -37,8 +38,13 @@ export function createEnvironmentPresentationAtoms<E>(input: {
   /** Authoritative live server config, including streamed provider/settings updates. */
   readonly serverConfigValueAtom: (environmentId: EnvironmentId) => Atom.Atom<ServerConfig | null>;
 }) {
-  const presentationAtom = Atom.family((environmentId: EnvironmentId) =>
-    Atom.make((get) => {
+  const presentationAtom = Atom.family((environmentId: EnvironmentId) => {
+    let labeledEntry: {
+      source: ConnectionCatalogEntry;
+      label: string;
+      value: ConnectionCatalogEntry;
+    } | null = null;
+    return Atom.make((get) => {
       const entry = get(input.catalogValueAtom).entries.get(environmentId);
       if (entry === undefined) {
         return null;
@@ -47,16 +53,30 @@ export function createEnvironmentPresentationAtoms<E>(input: {
         AsyncResult.value(get(input.stateAtom(environmentId))),
         () => AVAILABLE_CONNECTION_STATE,
       );
+      const serverConfig = get(input.serverConfigValueAtom(environmentId));
+      const label =
+        serverConfig?.environment.capabilities.environmentName === true
+          ? serverConfig.environment.label
+          : entry.target.label;
+      // Keep route consumers stable through unrelated provider/settings refreshes.
+      if (labeledEntry?.source !== entry || labeledEntry.label !== label) {
+        labeledEntry = {
+          source: entry,
+          label,
+          value:
+            label === entry.target.label ? entry : { ...entry, target: { ...entry.target, label } },
+        };
+      }
       return {
-        entry,
+        entry: labeledEntry.value,
         connection:
           entry.unsupportedReason === undefined
             ? presentEnvironmentConnection(state)
             : { phase: "unsupported", error: entry.unsupportedReason, traceId: null },
-        serverConfig: get(input.serverConfigValueAtom(environmentId)),
+        serverConfig,
       } satisfies EnvironmentPresentation;
-    }).pipe(Atom.withLabel(`environment-presentation:${environmentId}`)),
-  );
+    }).pipe(Atom.withLabel(`environment-presentation:${environmentId}`));
+  });
 
   let previous: ReadonlyMap<EnvironmentId, EnvironmentPresentation> = new Map();
   const presentationsAtom = Atom.make((get) => {
@@ -126,7 +146,7 @@ export function createEnvironmentSummaryAtoms(input: {
   const identitiesAtom = Atom.make((get) => {
     const next = [...get(input.catalogValueAtom).entries].map(([environmentId, entry]) => ({
       environmentId,
-      label: entry.target.label,
+      label: get(input.presentationAtom(environmentId))?.entry.target.label ?? entry.target.label,
     }));
     const previous = Option.getOrNull(
       get.self<ReadonlyArray<{ readonly environmentId: EnvironmentId; readonly label: string }>>(),

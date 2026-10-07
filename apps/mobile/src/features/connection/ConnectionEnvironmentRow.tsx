@@ -45,7 +45,6 @@ export function ConnectionEnvironmentRow(props: {
     updates: { readonly label: string; readonly displayUrl: string },
   ) => Promise<AtomCommandResult<unknown, unknown>>;
 }) {
-  const [label, setLabel] = useState(props.environment.environmentLabel);
   const [url, setUrl] = useState(props.environment.displayUrl);
   const serverConfig = useAtomValue(
     serverEnvironment.configValueAtom(props.environment.environmentId),
@@ -62,7 +61,7 @@ export function ConnectionEnvironmentRow(props: {
       props.environment.connectionState === "reconnecting");
   const handleSave = useCallback(async () => {
     const result = await props.onUpdate(props.environment.environmentId, {
-      label: label.trim(),
+      label: props.environment.environmentLabel,
       displayUrl: url.trim(),
     });
     if (AsyncResult.isSuccess(result)) {
@@ -74,7 +73,7 @@ export function ConnectionEnvironmentRow(props: {
       "Could not update environment",
       error instanceof Error ? error.message : "The environment could not be updated.",
     );
-  }, [label, url, props]);
+  }, [url, props]);
 
   return (
     <Animated.View layout={LinearTransition.duration(250)} className="bg-grouped-card">
@@ -160,15 +159,6 @@ export function ConnectionEnvironmentRow(props: {
             </Text>
           ) : (
             <>
-              <ConnectionFormField
-                label="Label"
-                autoCapitalize="words"
-                autoCorrect={false}
-                placeholder="My MacBook"
-                value={label}
-                onChangeText={setLabel}
-              />
-
               <ConnectionFormField
                 label="URL"
                 autoCapitalize="none"

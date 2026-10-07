@@ -109,6 +109,44 @@ describe("environment summary subscriptions", () => {
     }
   });
 
+  it("uses the server name for all summaries, including cached/offline names, without changing other machines", () => {
+    const clients = [harness(), harness()];
+    try {
+      for (const h of clients) {
+        const ids = h.registry.get(h.environmentIdsAtom);
+        for (const label of ["Ноутбук M4 Air", "Host automatic name"]) {
+          h.registry.set(h.configs(FIRST), {
+            ...config(),
+            environment: {
+              ...config().environment,
+              environmentId: FIRST,
+              label,
+              capabilities: { ...config().environment.capabilities, environmentName: true },
+            },
+          });
+          expect(h.registry.get(h.identitiesAtom)).toEqual([
+            { environmentId: FIRST, label },
+            { environmentId: SECOND, label: "second" },
+          ]);
+          expect(h.registry.get(h.environmentsAtom)[0]?.environmentLabel).toBe(label);
+          expect(h.registry.get(h.full.presentationAtom(FIRST))?.entry.target.label).toBe(label);
+          expect(h.registry.get(h.environmentIdsAtom)).toBe(ids);
+          expect(Option.getOrThrow(AsyncResult.value(h.registry.get(h.state))).phase).toBe(
+            "available",
+          );
+        }
+        const beforeRefresh = h.registry.get(h.full.presentationAtom(FIRST))?.entry;
+        const currentConfig = h.registry.get(h.configs(FIRST))!;
+        h.registry.set(h.configs(FIRST), { ...currentConfig, cwd: "/another-workspace" });
+        expect(h.registry.get(h.full.presentationAtom(FIRST))?.entry).toBe(beforeRefresh);
+        // The catalog still owns routes and credentials; renaming never reconnects it.
+        expect(h.registry.get(h.catalog).entries.get(FIRST)?.target.label).toBe("first");
+      }
+    } finally {
+      clients.forEach((h) => h.registry.dispose());
+    }
+  });
+
   it("keeps connected search targets stable through config refreshes and updates them on disconnect", () => {
     const h = harness();
     let changes = 0;

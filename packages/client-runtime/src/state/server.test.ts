@@ -425,6 +425,43 @@ describe("server state projection", () => {
     expect(result.latestEvent.type).toBe("settingsUpdated");
   });
 
+  it("projects renames and resets from the config stream for multiple clients and retains legacy updates", () => {
+    let clients = [0, 1].map(() =>
+      applyServerConfigProjection(Option.none(), {
+        version: 1,
+        type: "snapshot",
+        config: CONFIG,
+      }),
+    );
+    for (const [environmentName, label] of [
+      ["Ноутбук M4 Air", "Ноутбук M4 Air"],
+      ["", "Detected hostname"],
+    ] as const) {
+      clients = clients.map((current) =>
+        applyServerConfigProjection(current, {
+          version: 1,
+          type: "settingsUpdated",
+          payload: {
+            settings: { ...CONFIG.settings, environmentName },
+            environmentLabel: label,
+          },
+        }),
+      );
+      for (const client of clients) {
+        expect(Option.getOrThrow(client).config.environment.label).toBe(label);
+        expect(Option.getOrThrow(client).config.environment.environmentId).toBe(
+          CONFIG.environment.environmentId,
+        );
+      }
+    }
+    const legacy = applyServerConfigProjection(clients[0]!, {
+      version: 1,
+      type: "settingsUpdated",
+      payload: { settings: CONFIG.settings },
+    });
+    expect(Option.getOrThrow(legacy).config.environment.label).toBe("Detected hostname");
+  });
+
   it("carries published environment themes in and out of the projected snapshot", () => {
     const snapshot = applyServerConfigProjection(Option.none(), {
       version: 1,

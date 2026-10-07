@@ -1,4 +1,4 @@
-import { EnvironmentId } from "@t3tools/contracts";
+import { EnvironmentId, ORCHESTRATION_PROTOCOL_VERSION } from "@t3tools/contracts";
 import type {
   RelayClientEnvironmentRecord,
   RelayEnvironmentStatusResponse,
@@ -176,6 +176,41 @@ const makeHarness = Effect.fn("RelayDiscoveryTest.makeHarness")(function* () {
 });
 
 describe("RelayEnvironmentDiscovery", () => {
+  it.effect("uses a health-verified name instead of the older relay registration name", () =>
+    Effect.gen(function* () {
+      const harness = yield* makeHarness();
+      yield* Effect.gen(function* () {
+        const discovery = yield* RelayEnvironmentDiscovery.RelayEnvironmentDiscovery;
+        const refresh = yield* Effect.forkChild(discovery.refresh);
+        const requests = yield* Ref.get(harness.statusRequests);
+        for (const environment of environments) {
+          yield* Deferred.succeed(requests.get(environment.environmentId)!, {
+            ...status(environment, "online"),
+            descriptor: {
+              environmentId: environment.environmentId,
+              label:
+                environment.environmentId === environments[0]!.environmentId
+                  ? "Ноутбук M4 Air"
+                  : environment.label,
+              platform: { os: "darwin", arch: "arm64" },
+              serverVersion: "0.0.46",
+              orchestrationProtocolVersion: ORCHESTRATION_PROTOCOL_VERSION,
+              capabilities: { repositoryIdentity: true, environmentName: true },
+            },
+          });
+        }
+        yield* Fiber.join(refresh);
+        const current = yield* SubscriptionRef.get(discovery.state);
+        expect(current.environments.get(environments[0]!.environmentId)?.environment.label).toBe(
+          "Ноутбук M4 Air",
+        );
+        expect(current.environments.get(environments[1]!.environmentId)?.environment.label).toBe(
+          environments[1]!.label,
+        );
+      }).pipe(Effect.provide(harness.layer));
+    }).pipe(Effect.scoped),
+  );
+
   it.effect("publishes each environment status as soon as that lookup completes", () =>
     Effect.gen(function* () {
       const harness = yield* makeHarness();

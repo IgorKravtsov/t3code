@@ -91,6 +91,15 @@ or remove it. On mobile, open the machine under **Settings → Environments** an
 choose **Edit**. Signing out of T3 Connect removes only that route; a machine
 you can still reach another way stays saved.
 
+### Name a machine
+
+On web and desktop, open **Settings → Connections** and choose **Rename** from the
+machine's menu. On mobile, open **Settings → Environments**, select the machine,
+and edit **Environment name**. The name is saved on that environment and updates
+in every connected client, including connections through T3 Connect. Choose
+**Use detected name** to return to the host's automatic name. The machine must
+be connected, and your session must have permission to change its settings.
+
 ### Balance new threads across machines
 
 Auto balance is off by default. On web and desktop, enable it in

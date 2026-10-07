@@ -21,6 +21,7 @@ import { resolveServerSelfUpdateCapability } from "../cloud/selfUpdate.ts";
 import { resolveServiceLauncherMode } from "../cloud/serviceLauncherClient.ts";
 import * as ServerConfig from "../config.ts";
 import * as ProcessRunner from "../processRunner.ts";
+import * as ServerSettings from "../serverSettings.ts";
 import { resolveServerEnvironmentLabel } from "./ServerEnvironmentLabel.ts";
 import { detectServerEnvironmentMachineKind } from "./ServerEnvironmentMachine.ts";
 
@@ -185,6 +186,7 @@ export const make = Effect.gen(function* () {
   const path = yield* Path.Path;
   const serverConfig = yield* ServerConfig.ServerConfig;
   const secrets = yield* ServerSecretStore.ServerSecretStore;
+  const settings = yield* ServerSettings.ServerSettingsService;
   const identity = yield* ServerEnvironmentIdentity;
   const hostPlatform = yield* HostProcessPlatform;
   const hostArchitecture = yield* HostProcessArchitecture;
@@ -250,6 +252,7 @@ export const make = Effect.gen(function* () {
       threadPullRequestLinking: true,
       serverResolvedCommandContext: true,
       environmentIcon: true,
+      environmentName: true,
       projectCloneTracking: true,
       ...(serverSelfUpdate === null ? {} : { serverSelfUpdate }),
       ...(serverInstallation === null ? {} : { serverInstallation }),
@@ -265,15 +268,16 @@ export const make = Effect.gen(function* () {
 
   return ServerEnvironment.of({
     getEnvironmentId: Effect.succeed(environmentId),
-    // The publish opt-in and relay link change at runtime (`t3 connect
-    // publish`, the client settings toggle), so the capability is read per
-    // descriptor request rather than baked in at startup.
-    getDescriptor: readAgentActivityPublishingActive(secrets).pipe(
-      Effect.map((agentActivityPublishing) => ({
+    // Names and publishing preferences can change while clients stay connected.
+    getDescriptor: Effect.gen(function* () {
+      const currentSettings = yield* settings.getSettings.pipe(Effect.orDie);
+      const agentActivityPublishing = yield* readAgentActivityPublishingActive(secrets);
+      return {
         ...descriptor,
+        label: currentSettings.environmentName || label,
         capabilities: { ...descriptor.capabilities, agentActivityPublishing },
-      })),
-    ),
+      };
+    }),
   });
 });
 

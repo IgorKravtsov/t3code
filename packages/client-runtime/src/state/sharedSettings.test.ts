@@ -44,6 +44,18 @@ describe("supportsSharedSettingsSync", () => {
 });
 
 describe("splitSharedServerPatch", () => {
+  it("keeps a machine's name local instead of copying it to other environments", () => {
+    expect(
+      splitSharedServerPatch({
+        environmentName: "Ноутбук M4 Air",
+        sidebarAutoSettleOnMerge: false,
+      }),
+    ).toEqual({
+      localPatch: { environmentName: "Ноутбук M4 Air" },
+      sharedPatch: { sidebarAutoSettleOnMerge: false },
+    });
+  });
+
   it("keeps project overrides local: project ids belong to one environment", () => {
     const patch = {
       projectSettingsOverrides: { [ProjectId.make("project")]: { defaultAutoPull: true } },

@@ -187,6 +187,10 @@ export const make = Effect.fn("RelayEnvironmentDiscovery.make")(function* () {
       }
       yield* updateEnvironment(generation, environment.environmentId, (current) => ({
         ...current,
+        environment:
+          result.success.status === "online" && result.success.descriptor !== undefined
+            ? { ...current.environment, label: result.success.descriptor.label }
+            : current.environment,
         availability: result.success.status,
         status: Option.some(result.success),
         error: Option.none(),

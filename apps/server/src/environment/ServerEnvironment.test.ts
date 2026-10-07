@@ -24,7 +24,9 @@ import {
   RELAY_ENVIRONMENT_CREDENTIAL_SECRET,
   RELAY_URL_SECRET,
 } from "../cloud/config.ts";
+import * as SqlitePersistence from "../persistence/Sqlite.ts";
 import * as ServerConfig from "../config.ts";
+import * as ServerSettings from "../serverSettings.ts";
 import * as ServerEnvironment from "./ServerEnvironment.ts";
 
 const isServerEnvironmentIdPersistenceError = Schema.is(
@@ -33,6 +35,7 @@ const isServerEnvironmentIdPersistenceError = Schema.is(
 
 const layerServerEnvironment = (baseDir: string) =>
   ServerEnvironment.layer.pipe(
+    Layer.provide(ServerSettings.layerTest()),
     Layer.provide(ServerSecretStore.layer),
     Layer.provide(ServerConfig.layerTest(process.cwd(), baseDir)),
   );
@@ -85,6 +88,45 @@ const makeServerConfig = Effect.fn(function* (baseDir: string) {
 });
 
 it.layer(NodeServices.layer)("ServerEnvironmentLive", (it) => {
+  it.effect(
+    "persists a renamed machine across restarts, publishes it immediately, and restores detection",
+    () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const baseDir = yield* fs.makeTempDirectoryScoped({ prefix: "t3-environment-name-" });
+        const settingsLayer = ServerSettings.layer.pipe(
+          Layer.provide(ServerSecretStore.layer),
+          Layer.provide(SqlitePersistence.layerMemory),
+        );
+        const environmentLayer = Layer.mergeAll(
+          ServerEnvironment.layer.pipe(
+            Layer.provide(ServerSecretStore.layer),
+            Layer.provide(settingsLayer),
+          ),
+          settingsLayer,
+        ).pipe(Layer.provide(ServerConfig.layerTest(process.cwd(), baseDir)));
+        const detected = yield* Effect.gen(function* () {
+          const environment = yield* ServerEnvironment.ServerEnvironment;
+          const settings = yield* ServerSettings.ServerSettingsService;
+          const before = yield* environment.getDescriptor;
+          yield* settings.updateSettings({ environmentName: "  Ноутбук M4 Air  " });
+          const after = yield* environment.getDescriptor;
+          expect(after.environmentId).toBe(before.environmentId);
+          expect(after.label).toBe("Ноутбук M4 Air");
+          expect(after.capabilities.environmentName).toBe(true);
+          return before;
+        }).pipe(Effect.provide(Layer.fresh(environmentLayer)));
+        yield* Effect.gen(function* () {
+          const environment = yield* ServerEnvironment.ServerEnvironment;
+          const settings = yield* ServerSettings.ServerSettingsService;
+          expect((yield* environment.getDescriptor).label).toBe("Ноутбук M4 Air");
+          expect((yield* environment.getDescriptor).environmentId).toBe(detected.environmentId);
+          yield* settings.updateSettings({ environmentName: "" });
+          expect((yield* environment.getDescriptor).label).toBe(detected.label);
+        }).pipe(Effect.provide(Layer.fresh(environmentLayer)));
+      }),
+  );
+
   it.effect("publishes proven install ownership only for manually updated servers", () =>
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
@@ -108,6 +150,7 @@ it.layer(NodeServices.layer)("ServerEnvironmentLive", (it) => {
         }).pipe(
           Effect.provide(
             ServerEnvironment.layer.pipe(
+              Layer.provide(ServerSettings.layerTest()),
               Layer.provide(layerEmptySecretStore),
               Layer.provide(ServerConfig.layer({ ...config, mode })),
             ),
@@ -238,7 +281,10 @@ it.layer(NodeServices.layer)("ServerEnvironmentLive", (it) => {
         prefix: "t3-server-environment-publish-test-",
       });
       const layerTest = Layer.mergeAll(
-        ServerEnvironment.layer.pipe(Layer.provide(ServerSecretStore.layer)),
+        ServerEnvironment.layer.pipe(
+          Layer.provide(ServerSettings.layerTest()),
+          Layer.provide(ServerSecretStore.layer),
+        ),
         ServerSecretStore.layer,
       ).pipe(Layer.provide(ServerConfig.layerTest(process.cwd(), baseDir)));
 
@@ -293,6 +339,7 @@ it.layer(NodeServices.layer)("ServerEnvironmentLive", (it) => {
         }).pipe(
           Effect.provide(
             ServerEnvironment.layer.pipe(
+              Layer.provide(ServerSettings.layerTest()),
               Layer.provide(ServerSecretStore.layer),
               Layer.provide(ServerConfig.layer({ ...serverConfig, ...overrides })),
             ),
@@ -359,6 +406,7 @@ it.layer(NodeServices.layer)("ServerEnvironmentLive", (it) => {
         }).pipe(
           Effect.provide(
             ServerEnvironment.layer.pipe(
+              Layer.provide(ServerSettings.layerTest()),
               Layer.provide(layerEmptySecretStore),
               Layer.provide(Layer.merge(ServerConfig.layer(serverConfig), layerFailingFileSystem)),
             ),

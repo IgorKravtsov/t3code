@@ -97,6 +97,32 @@ const recordProviderUsage = (provider: string, instanceId: string | null = provi
   });
 
 it.layer(NodeServices.layer)("server settings", (it) => {
+  it.effect("broadcasts environment renames to every subscriber and persists resets", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const service = yield* ServerSettingsModule.ServerSettingsService;
+        const config = yield* ServerConfig.ServerConfig;
+        const fs = yield* FileSystem.FileSystem;
+        const desktop = yield* service.subscribeChanges;
+        const phone = yield* service.subscribeChanges;
+        yield* service.updateSettings({ environmentName: "Ноутбук M4 Air" });
+        for (const changes of [desktop, phone]) {
+          const update = yield* changes.pipe(Stream.runHead);
+          assert.equal(Option.getOrThrow(update).environmentName, "Ноутбук M4 Air");
+        }
+        const persisted = yield* fs
+          .readFileString(config.settingsPath)
+          .pipe(Effect.flatMap(decodeServerSettingsJson));
+        assert.equal(persisted.environmentName, "Ноутбук M4 Air");
+        yield* service.updateSettings({ environmentName: "" });
+        const reset = yield* fs
+          .readFileString(config.settingsPath)
+          .pipe(Effect.flatMap(decodeServerSettingsJson));
+        assert.equal(reset.environmentName, "");
+      }),
+    ).pipe(Effect.provide(layerServerSettings())),
+  );
+
   it.effect(
     "persists project worktree defaults and retains previous relative locations after reset",
     () =>

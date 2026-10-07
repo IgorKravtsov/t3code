@@ -10,6 +10,7 @@ import { Alert, Pressable, View } from "react-native";
 
 import { AppText as Text } from "../../components/AppText";
 import { SymbolView } from "../../components/AppSymbol";
+import { useEnvironments } from "../../state/environments";
 import { environmentCatalog } from "../../connection/catalog";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { SettingsSection } from "../settings/components/SettingsSection";
@@ -33,6 +34,7 @@ const options: ReadonlyArray<{
 ];
 
 export function GitHubRoutingSettings() {
+  const { environments } = useEnvironments();
   const catalog = useAtomValue(environmentCatalog.catalogValueAtom);
   const permissions = useAtomValue(environmentCatalog.githubRoutingPermissionsValueAtom);
   const update = useAtomCommand(environmentCatalog.setGitHubRoutingPermission);
@@ -45,21 +47,22 @@ export function GitHubRoutingSettings() {
       <SettingsSection title="GitHub routing">
         {[...catalog.entries.values()].map((entry) => {
           const environmentId = entry.target.environmentId;
+          const label =
+            environments.find((environment) => environment.environmentId === environmentId)
+              ?.label ?? entry.target.label;
           const selected = gitHubRoutingPermissionFor(entry, permissions);
           const disabled = !catalog.isReady || saving || gitHubRoutingConnectionKey(entry) === null;
           return (
             <View key={environmentId}>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`${entry.target.label} GitHub routing`}
+                accessibilityLabel={`${label} GitHub routing`}
                 accessibilityState={{ expanded: expanded === environmentId }}
                 className="flex-row items-center gap-3 p-4"
                 onPress={() => setExpanded(expanded === environmentId ? null : environmentId)}
               >
                 <View className="min-w-0 flex-1 gap-0.5">
-                  <Text className="text-base font-t3-bold text-foreground">
-                    {entry.target.label}
-                  </Text>
+                  <Text className="text-base font-t3-bold text-foreground">{label}</Text>
                   <Text className="text-xs text-foreground-muted" numberOfLines={1}>
                     {connectionCatalogDisplayUrl(entry) ?? "T3 Connect"}
                   </Text>

@@ -21,6 +21,23 @@ const decodeServerSettingsPatch = Schema.decodeUnknownSync(ServerSettingsPatch);
 const encodeServerSettings = Schema.encodeSync(ServerSettings);
 const decodeClaudeSettings = Schema.decodeUnknownSync(ClaudeSettings);
 
+describe("environment names", () => {
+  it("uses detection for existing servers and normalizes saved names", () => {
+    expect(decodeServerSettings({}).environmentName).toBe("");
+    const input = { environmentName: "  Ноутбук M4 Air  " };
+    expect(decodeServerSettings(input).environmentName).toBe("Ноутбук M4 Air");
+    expect(decodeServerSettingsPatch(input)).toEqual({ environmentName: "Ноутбук M4 Air" });
+    expect(encodeServerSettings(decodeServerSettings(input)).environmentName).toBe(
+      "Ноутбук M4 Air",
+    );
+    expect(decodeServerSettingsPatch({ environmentName: "   " })).toEqual({ environmentName: "" });
+  });
+
+  it("rejects names longer than 200 characters", () => {
+    expect(() => decodeServerSettingsPatch({ environmentName: "x".repeat(201) })).toThrow();
+  });
+});
+
 describe("ServerSettings response streaming", () => {
   it("defaults to paragraph buffering", () => {
     expect(decodeServerSettings({}).responseStreamingMode).toBe("paragraph");
