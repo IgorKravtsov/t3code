@@ -57,15 +57,20 @@ describe("syncT3SettingsIntoT4", () => {
     expect(read(NodePath.join(t4, "userdata", "client-settings.json")).confirmQuit).toBe("hold");
   });
 
-  it("never lets T4 resume threads T3 also owns", () => {
+  it("follows T3 cleanup and never lets T4 resume threads T3 also owns", () => {
     const { t3, t4 } = setup();
+    write(NodePath.join(t4, "userdata", "settings.json"), {
+      worktreeCleanup: { mode: "custom", rules: { worktreeOnDelete: false } },
+    });
     write(NodePath.join(t3, "settings.json"), {
+      storageCleanup: { worktreeOnDelete: true },
       continueThreadsAfterServerUpdate: true,
       autoResumeLimitedThreads: true,
       projectSettingsOverrides: { ui: { continueThreadsAfterServerUpdate: true } },
     });
     syncT3SettingsIntoT4(t4, t3);
     expect(read(NodePath.join(t4, "userdata", "settings.json"))).toEqual({
+      storageCleanup: { worktreeOnDelete: true },
       continueThreadsAfterServerUpdate: false,
       autoResumeLimitedThreads: false,
       projectSettingsOverrides: { ui: { continueThreadsAfterServerUpdate: false } },

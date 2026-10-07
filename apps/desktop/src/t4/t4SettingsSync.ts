@@ -89,6 +89,11 @@ export function syncT3SettingsIntoT4(
       const merged = mergeT4Values(source, target, baseline);
       // Both apps would otherwise resume the same threads in shared worktrees.
       if (name === "settings.json" && object(merged)) {
+        // The global Storage screen edits storageCleanup only, so a global worktreeCleanup here
+        // is left over from early migrations that forced it off. It always follows T3.
+        if (object(source) && "worktreeCleanup" in source)
+          merged.worktreeCleanup = source.worktreeCleanup;
+        else delete merged.worktreeCleanup;
         merged.continueThreadsAfterServerUpdate = false;
         merged.autoResumeLimitedThreads = false;
         for (const override of Object.values(
