@@ -6,7 +6,7 @@ This document covers the unified release workflow for stable and nightly desktop
 
 ## Separate local T4 Code build
 
-On Linux or macOS, install Node 24, pnpm 11.10 and Rust, then run from this branch:
+On Linux or macOS, install Node 24, pnpm 11.10 and Rust via rustup, then run from this branch:
 
 ```sh
 pnpm install --frozen-lockfile
@@ -18,6 +18,8 @@ architecture. Linux installs under `~/.local/share/t4code/app`; macOS installs
 `~/Applications/T4 Code.app`. Both provide `~/.local/bin/t4-code`. The local preview has a
 separate application identity, URL handler, desktop profile, and `~/.t4` data directory;
 it carries no T3 update feed.
+The resource monitor requires Rust 1.95 or newer. If the active compiler is older, the script
+installs 1.95 with rustup and selects it only for the build, leaving the default unchanged.
 
 On first installation it copies all local `~/.t3/userdata`, backs up SQLite through the
 read-only SQLite backup API (including WAL), and preserves the untouched snapshot in

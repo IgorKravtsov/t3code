@@ -36,10 +36,12 @@ const worktree = await NodeFSP.mkdtemp(NodePath.join(buildRoot, "source-"));
 const output = NodePath.join(worktree, "release-t4");
 const temporary = NodePath.join(buildRoot, "tmp");
 await NodeFSP.mkdir(temporary, { recursive: true, mode: 0o700 });
+let rustToolchain: string | undefined;
 
 async function run(command: string, arguments_: string[], cwd = worktree) {
   const environment: NodeJS.ProcessEnv = { ...process.env, CI: "true", TMPDIR: temporary };
   delete environment.ELECTRON_RUN_AS_NODE;
+  if (rustToolchain) environment.RUSTUP_TOOLCHAIN = rustToolchain;
   await new Promise<void>((resolve, reject) => {
     const child = NodeChildProcess.spawn(command, arguments_, {
       cwd,
@@ -54,6 +56,15 @@ async function run(command: string, arguments_: string[], cwd = worktree) {
 }
 
 const shellQuote = (value: string) => "'" + value.replaceAll("'", "'\\''") + "'";
+const rust = NodeChildProcess.spawnSync("rustc", ["--version"], { encoding: "utf8" });
+const rustVersion = /^rustc (\d+)\.(\d+)\./.exec(rust.stdout ?? "");
+if (rust.status !== 0 || !rustVersion)
+  throw new Error("Install Rust 1.95 or newer (via rustup) before building T4 Code.");
+if (Number(rustVersion[1]) === 1 && Number(rustVersion[2]) < 95) {
+  // sysinfo in the resource monitor needs 1.95. Keep the user's default toolchain unchanged.
+  await run("rustup", ["toolchain", "install", "1.95.0", "--profile", "minimal"], repository);
+  rustToolchain = "1.95.0";
+}
 await run("git", ["worktree", "add", "--detach", worktree, "HEAD"], repository);
 await run("git", ["apply", NodePath.join(repository, "scripts", "lib", "t4-branding.patch")]);
 await run("pnpm", ["install", "--frozen-lockfile"]);
