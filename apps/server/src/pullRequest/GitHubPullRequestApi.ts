@@ -43,6 +43,7 @@ import {
 } from "@t3tools/contracts";
 
 import * as GitHubApi from "../sourceControl/GitHubApi.ts";
+import * as GitHubCredentials from "../sourceControl/GitHubCredentials.ts";
 import { readGraphQlPages } from "../sourceControl/githubGraphQl.ts";
 import * as VcsProcess from "../vcs/VcsProcess.ts";
 import * as SourceControlRateLimit from "../sourceControl/SourceControlRateLimit.ts";
@@ -1185,6 +1186,30 @@ export const make = Effect.gen(function* () {
         ),
       ),
     );
+  /**
+   * Pins the token `gh` hands over in the caller's checkout for the whole call, so a wrapper that
+   * picks the account per directory decides who reads this repository. A call that already runs
+   * under a pinned credential keeps it.
+   */
+  const inCheckout = <A, E, R>(
+    input: { readonly cwd: string; readonly host: string },
+    effect: Effect.Effect<A, E, R>,
+  ) =>
+    Effect.gen(function* () {
+      if ((yield* GitHubApi.PinnedGitHubCredential) !== null) return yield* effect;
+      const host = input.host.toLowerCase();
+      const { token, fingerprint } = yield* api
+        .credential(host)
+        .pipe(Effect.provideService(GitHubCredentials.CredentialDirectory, input.cwd));
+      return yield* effect.pipe(
+        Effect.provideService(SourceControlRateLimit.CredentialScope, fingerprint),
+        Effect.provideService(GitHubApi.PinnedGitHubCredential, {
+          host,
+          token,
+          credentialFingerprint: fingerprint,
+        }),
+      );
+    });
   const getRoutingIdentity: GitHubPullRequestApi["Service"]["getRoutingIdentity"] = (input) =>
     captureVerifiedCredential(input).pipe(
       Effect.map(({ accountId, viewer }) => ({ accountId, viewer })),
@@ -1875,7 +1900,7 @@ export const make = Effect.gen(function* () {
   const getPullRequestWatchFingerprint: GitHubPullRequestApi["Service"]["getPullRequestWatchFingerprint"] =
     (input) => Effect.request(new PullRequestWatchFingerprintRead(input), watchFingerprintResolver);
 
-  return GitHubPullRequestApi.of({
+  const service: GitHubPullRequestApi["Service"] = {
     withVerifiedCredential,
     revalidateChecks,
     getRoutingIdentity,
@@ -2848,7 +2873,24 @@ export const make = Effect.gen(function* () {
           }),
         ),
       ),
-  });
+  };
+  type CheckoutMethod = (
+    input: { readonly cwd: string; readonly host: string },
+    ...rest: ReadonlyArray<unknown>
+  ) => Effect.Effect<unknown, GitHubPullRequestApiError>;
+  // Every method but the checks revalidator, which runs inside a read that is already pinned,
+  // takes the checkout and host it reads for first.
+  return GitHubPullRequestApi.of(
+    Object.fromEntries(
+      Object.entries(service).map(([name, method]) => [
+        name,
+        name === "revalidateChecks"
+          ? method
+          : (...[input, ...rest]: Parameters<CheckoutMethod>) =>
+              inCheckout(input, (method as CheckoutMethod)(input, ...rest)),
+      ]),
+    ) as GitHubPullRequestApi["Service"],
+  );
 });
 
 export const layer = Layer.effect(GitHubPullRequestApi, make);

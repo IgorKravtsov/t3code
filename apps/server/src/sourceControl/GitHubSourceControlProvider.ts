@@ -25,6 +25,7 @@ import { isSshRemoteUrl } from "@t3tools/shared/sourceControl";
 import * as ServerSettings from "../serverSettings.ts";
 import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
 import * as GitHubApi from "./GitHubApi.ts";
+import * as GitHubCredentials from "./GitHubCredentials.ts";
 import {
   decodeGitHubPullRequestEntries,
   type NormalizedGitHubPullRequestRecord,
@@ -899,7 +900,7 @@ export const make = Effect.gen(function* () {
     return { title: subject.title, body: subject.body ?? null };
   });
 
-  return SourceControlProvider.SourceControlProvider.of({
+  const service = SourceControlProvider.SourceControlProvider.of({
     kind: "github",
     resolveLink: (input) => {
       // Automatic enrichment must not send ambient CLI credentials to a host from message text.
@@ -1031,5 +1032,20 @@ export const make = Effect.gen(function* () {
           providerError("checkoutChangeRequest", input.cwd, { reference: input.reference }),
         ),
       ),
+  });
+  // `gh` hands over the token from the checkout, so a per-directory account wrapper applies.
+  const inCheckout = (cwd: string) =>
+    Effect.provideService(GitHubCredentials.CredentialDirectory, cwd);
+  return SourceControlProvider.SourceControlProvider.of({
+    ...service,
+    listChangeRequests: (input) => service.listChangeRequests(input).pipe(inCheckout(input.cwd)),
+    getChangeRequest: (input) => service.getChangeRequest(input).pipe(inCheckout(input.cwd)),
+    createChangeRequest: (input) => service.createChangeRequest(input).pipe(inCheckout(input.cwd)),
+    getRepositoryCloneUrls: (input) =>
+      service.getRepositoryCloneUrls(input).pipe(inCheckout(input.cwd)),
+    createRepository: (input) => service.createRepository(input).pipe(inCheckout(input.cwd)),
+    getDefaultBranch: (input) => service.getDefaultBranch(input).pipe(inCheckout(input.cwd)),
+    checkoutChangeRequest: (input) =>
+      service.checkoutChangeRequest(input).pipe(inCheckout(input.cwd)),
   });
 });

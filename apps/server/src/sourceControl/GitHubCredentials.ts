@@ -96,6 +96,16 @@ export class GitHubCredentials extends Context.Service<
   }
 >()("t3/sourceControl/GitHubCredentials") {}
 
+/**
+ * The checkout a credential is asked for. `gh` runs there, so a wrapper that picks an account per
+ * directory (a separate `GH_CONFIG_DIR` for work and personal checkouts) hands over the right
+ * token. Null asks from the server's own working directory.
+ */
+export const CredentialDirectory = Context.Reference<string | null>(
+  "t3/sourceControl/GitHubCredentials/CredentialDirectory",
+  { defaultValue: () => null },
+);
+
 function normalizeHost(host: string): string {
   return host.trim().toLowerCase();
 }
@@ -142,7 +152,7 @@ export const make = Effect.gen(function* () {
       Effect.orDie,
     );
 
-  const fromGh = (host: string, account: string | undefined) =>
+  const fromGh = (host: string, account: string | undefined, directory: string | undefined) =>
     process
       .run({
         operation: "GitHubCredentials.get",
@@ -154,7 +164,7 @@ export const make = Effect.gen(function* () {
           host,
           ...(account === undefined ? [] : ["--user", account]),
         ],
-        cwd: workingDirectory,
+        cwd: directory ?? workingDirectory,
         // Never let gh print the token into a debug log.
         env: { GH_DEBUG: "", GH_PROMPT_DISABLED: "1" },
         timeoutMs: 10_000,
@@ -191,22 +201,24 @@ export const make = Effect.gen(function* () {
       Effect.orElseSucceed(() => null),
     );
 
-  /** Cache key: the host plus its pinned account, so a changed pin misses the cache. */
-  const cacheKey = (host: string, account: string | undefined) =>
-    account === undefined ? host : `${host}\u0000${account}`;
+  /** Cache key: the host, its pinned account and the asking checkout, so a change misses it. */
+  const cacheKey = (host: string, account: string | undefined, directory: string | null) =>
+    [host, account ?? "", directory ?? ""].join("\u0000");
 
   const lookup = Effect.fn("GitHubCredentials.lookup")(function* (key: string) {
-    const [host = key, choice] = key.split("\u0000");
+    const [host = key, pinned = "", asked = ""] = key.split("\u0000");
+    const choice = pinned || undefined;
+    const directory = asked || undefined;
     // An environment token wins over a pinned account, exactly as it does in gh.
     const fromEnv = environmentToken(host, environment);
     // A pinned login gh no longer holds (logged out, expired) falls back to the active one,
     // which is what discovery reports as the account in use.
     const token =
       fromEnv ??
-      (yield* fromGh(host, choice).pipe(
+      (yield* fromGh(host, choice, directory).pipe(
         Effect.catchTags({
           GitHubNotSignedInError: (error) =>
-            choice === undefined ? Effect.fail(error) : fromGh(host, undefined),
+            choice === undefined ? Effect.fail(error) : fromGh(host, undefined, directory),
         }),
       ));
     return {
@@ -218,7 +230,8 @@ export const make = Effect.gen(function* () {
   });
 
   const cache = yield* Cache.makeWith(lookup, {
-    capacity: 32,
+    // One entry per host, account and checkout asked from.
+    capacity: 128,
     // A transient gh failure (a timeout, a locked keyring) is asked again on the next read.
     timeToLive: (exit) =>
       Exit.isSuccess(exit)
@@ -248,12 +261,19 @@ export const make = Effect.gen(function* () {
           fingerprint: yield* fingerprintOf(host, saved),
         } satisfies GitHubCredential;
       }
-      return yield* Cache.get(cache, cacheKey(host, choice?.account));
+      return yield* Cache.get(cache, cacheKey(host, choice?.account, yield* CredentialDirectory));
     }),
     invalidate: (rawHost) => {
       const host = normalizeHost(rawHost);
-      return hostChoice(host).pipe(
-        Effect.flatMap((choice) => Cache.invalidate(cache, cacheKey(host, choice?.account))),
+      // Every checkout may hold the refused token, so all of the host's entries are asked again.
+      return Cache.keys(cache).pipe(
+        Effect.flatMap((keys) =>
+          Effect.forEach(
+            [...keys].filter((key) => key.split("\u0000")[0] === host),
+            (key) => Cache.invalidate(cache, key),
+            { discard: true },
+          ),
+        ),
       );
     },
   });

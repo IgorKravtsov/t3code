@@ -38,7 +38,12 @@ function harness(
         }
         return {
           exitCode: ChildProcessSpawner.ExitCode(0),
-          stdout: input.args.includes("--user") ? `token-for-${user}\n` : "active-token\n",
+          // A per-directory wrapper around gh answers with another account in this checkout.
+          stdout: input.args.includes("--user")
+            ? `token-for-${user}\n`
+            : input.cwd === "/checkouts/work"
+              ? "work-token\n"
+              : "active-token\n",
           stderr: "",
           stdoutTruncated: false,
           stderrTruncated: false,
@@ -70,6 +75,20 @@ describe("GitHubCredentials", () => {
       const credential = yield* credentials.get("GitHub.com");
       expect(Redacted.value(credential.token)).toBe("active-token");
       expect(calls).toEqual([["auth", "token", "--hostname", "github.com"]]);
+    }).pipe(Effect.provide(layer));
+  });
+
+  it.effect("asks gh in the checkout and keeps each checkout's token apart", () => {
+    const { layer, calls } = harness();
+    return Effect.gen(function* () {
+      const credentials = yield* GitHubCredentials.GitHubCredentials;
+      const inWork = credentials
+        .get("github.com")
+        .pipe(Effect.provideService(GitHubCredentials.CredentialDirectory, "/checkouts/work"));
+      expect(Redacted.value((yield* inWork).token)).toBe("work-token");
+      expect(Redacted.value((yield* credentials.get("github.com")).token)).toBe("active-token");
+      expect(Redacted.value((yield* inWork).token)).toBe("work-token");
+      expect(calls).toHaveLength(2);
     }).pipe(Effect.provide(layer));
   });
 
