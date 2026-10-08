@@ -50,7 +50,11 @@ omarchy or the M1; the M4 environment stops when its app quits or the Mac sleeps
 
 - Never point a T4 server at `~/.t3`, and never run two servers on the same data home. Do not
   launch the T4 desktop app on omarchy while `t4code.service` runs.
-- Never accept a client's "Update server" for a T4 server; redeploy instead.
+- Never accept a client's "Update server" for a T4 server, whichever client (T3 or T4) offers
+  it. The button downloads a stock T3 release from GitHub, so it would replace the fork; the
+  services set `T3CODE_RELEASE_BASE_URL=https://t4-updates.invalid` so it fails instead. Update
+  T4 servers by redeploying. On the stock T3 servers (`~/.t3`) the button works as usual, so
+  check which server a prompt is about.
 - Run copies of `build-cli.sh` (from `/tmp`), never the file inside
   `~/.local/share/t4code-build/cli-src`, which the script resets.
 - Installing or restarting a service interrupts running turns (they resume afterwards). Tell the
