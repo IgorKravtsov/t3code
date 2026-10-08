@@ -1,0 +1,4 @@
+interface:
+  display_name: "T4 Code"
+  short_description: "Build, deploy and operate the T4 fork"
+  default_prompt: "Use $t4-code to build, deploy or check T4 Code on Ihor's machines."

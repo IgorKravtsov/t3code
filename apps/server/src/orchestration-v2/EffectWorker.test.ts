@@ -173,6 +173,19 @@ it("does not retry pure interrupt races where the turn is already gone", () => {
       "Provider session provider-session:x is not active.",
     ),
   );
+  // Claude reports a turn that already ended, or a process that already closed.
+  assert.isTrue(
+    EffectWorker.isNonRetryableProviderTurnControlFailure(
+      "provider-turn.interrupt",
+      "Claude provider turn provider-turn:x is not the active turn.",
+    ),
+  );
+  assert.isTrue(
+    EffectWorker.isNonRetryableProviderTurnControlFailure(
+      "provider-turn.interrupt",
+      "Claude provider thread provider-thread:x has no live query.",
+    ),
+  );
   // Restart is compound (interrupt + detach + start). Do not swallow start failures.
   assert.isFalse(
     EffectWorker.isNonRetryableProviderTurnControlFailure(

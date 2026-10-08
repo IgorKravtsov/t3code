@@ -1008,6 +1008,9 @@ function providerSession(input: {
   };
 }
 
+/** How long Stop waits for the CLI to acknowledge an interrupt before closing it. */
+export const CLAUDE_INTERRUPT_ACK_TIMEOUT = "5 seconds";
+
 function textFromClaudeContent(content: SDKAssistantMessage["message"]["content"]): string {
   return content.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("");
 }
@@ -7693,7 +7696,26 @@ export function makeClaudeAdapterV2(
               next.add(turnInput.providerTurnId);
               return next;
             });
-            yield* existing.query.interrupt;
+            // The SDK waits for the CLI to acknowledge with no deadline. A CLI
+            // that never answers (wedged, or throttled by memory pressure)
+            // would hang this Stop and every effect queued behind it, so stop
+            // waiting and close the process instead.
+            const acknowledged = yield* existing.query.interrupt.pipe(
+              Effect.timeoutOption(CLAUDE_INTERRUPT_ACK_TIMEOUT),
+              Effect.catch((cause) =>
+                Effect.logWarning("orchestration-v2.claude-query-interrupt-failed", {
+                  providerThreadId: turnInput.providerThread.id,
+                  providerTurnId: turnInput.providerTurnId,
+                  cause,
+                }).pipe(Effect.as(Option.none())),
+              ),
+            );
+            if (Option.isNone(acknowledged)) {
+              yield* Effect.logWarning("orchestration-v2.claude-query-interrupt-unacknowledged", {
+                providerThreadId: turnInput.providerThread.id,
+                providerTurnId: turnInput.providerTurnId,
+              });
+            }
             yield* existing.query.close.pipe(Effect.ignore);
             const closed = yield* Deferred.await(existing.closed).pipe(
               Effect.timeoutOption("10 seconds"),

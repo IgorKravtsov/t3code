@@ -39,8 +39,9 @@ export class OrchestrationEffectExecutionError extends Schema.TaggedError<Orches
 ) {}
 
 /**
- * Pure interrupt races with hard process teardown or a dead session produce
- * "not active" protocol errors. Retrying those only delays recovery.
+ * Pure interrupt races with hard process teardown, a dead session, or a turn
+ * that already ended produce "not active" protocol errors. Retrying those only
+ * delays recovery and blocks the thread's later effects.
  *
  * Do not apply this to `provider-turn.restart`: that compound effect also runs
  * detach and start. Swallowing a start failure that happens to mention
@@ -56,6 +57,8 @@ export function isNonRetryableProviderTurnControlFailure(
   }
   return (
     /is not active/i.test(errorText) ||
+    /is not the active turn/i.test(errorText) ||
+    /has no live query/i.test(errorText) ||
     /hard teardown is already in progress/i.test(errorText) ||
     /treating as already interrupted/i.test(errorText) ||
     /treating as already stopped/i.test(errorText)

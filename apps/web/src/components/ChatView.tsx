@@ -104,6 +104,7 @@ import {
   deriveThreadRuntime,
   presentPendingBackgroundWork,
   presentProviderGoal,
+  threadRuntimeStopRequested,
 } from "@t3tools/client-runtime/state/thread-execution";
 import { threadSupportsProviderHandoff } from "@t3tools/client-runtime/state/thread-workflows";
 import {
@@ -4558,16 +4559,26 @@ export default function ChatView(props: ChatViewProps) {
   }, [composerRef]);
   const canInterruptRunningThread =
     canOperateThread && deriveCanInterruptRunningThread(activeThread !== undefined, activeRuntime);
+  // Shown from the click until the server records the Stop; the recorded
+  // interrupt request then holds it until the run ends.
+  const [sendingStopKey, setSendingStopKey] = useState<string | null>(null);
+  const isStoppingRunningThread =
+    canInterruptRunningThread &&
+    (sendingStopKey === `${environmentId}:${activeThreadId}` ||
+      threadRuntimeStopRequested(activeRuntime, serverProjection?.turnItems));
   const onInterrupt = useCallback(async () => {
     if (
       !activeThread ||
       !readEnvironmentScope(activeThread.environmentId, AuthOrchestrationOperateScope)
     )
       return;
+    const requestKey = `${environmentId}:${activeThread.id}`;
+    setSendingStopKey(requestKey);
     const result = await interruptThreadTurn({
       environmentId,
       input: { threadId: activeThread.id },
     });
+    setSendingStopKey((current) => (current === requestKey ? null : current));
     if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
       const error = squashAtomCommandFailure(result);
       setThreadError(
@@ -8198,7 +8209,7 @@ export default function ChatView(props: ChatViewProps) {
         if (!canInterruptRunningThread) return;
         event.preventDefault();
         event.stopPropagation();
-        if (event.repeat) return;
+        if (event.repeat || isStoppingRunningThread) return;
         void onInterrupt();
         return;
       }
@@ -8224,6 +8235,7 @@ export default function ChatView(props: ChatViewProps) {
     activeThreadPinned,
     activeThreadSettled,
     canInterruptRunningThread,
+    isStoppingRunningThread,
     terminalUiState.terminalOpen,
     terminalUiState.activeTerminalId,
     activeThreadId,
@@ -11530,6 +11542,7 @@ export default function ChatView(props: ChatViewProps) {
                               }
                               phase={phase}
                               canInterrupt={canInterruptRunningThread}
+                              isStopping={isStoppingRunningThread}
                               isConnecting={isConnecting}
                               isSendBusy={isSendBusy || isSavingQueuedEdit || isResuming}
                               canResume={resumableRunId !== null || hasHeldQueuedRuns}

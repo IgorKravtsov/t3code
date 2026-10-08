@@ -33,6 +33,8 @@ interface ComposerPrimaryActionsProps {
   isRunning: boolean;
   /** Stop can reach a run, including one still preparing or starting. */
   canInterrupt: boolean;
+  /** Stop was sent and the run has not ended yet. */
+  isStopping?: boolean;
   followUpBehavior?: "queue" | "steer";
   alternateShortcutLabel?: string | null;
   showPlanFollowUpPrompt: boolean;
@@ -91,6 +93,7 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
   pendingAction,
   isRunning,
   canInterrupt,
+  isStopping = false,
   followUpBehavior = "steer",
   alternateShortcutLabel = null,
   showPlanFollowUpPrompt,
@@ -138,15 +141,18 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
           <button
             type="button"
             className={cn(
-              "flex cursor-pointer items-center justify-center rounded-full bg-destructive/90 text-white shadow-xs shadow-destructive/24 inset-shadow-control-highlight transition-all duration-150 hover:bg-destructive hover:scale-105 active:inset-shadow-control-pressed active:shadow-none [&_svg]:pointer-events-none",
+              "flex items-center justify-center rounded-full bg-destructive/90 text-white shadow-xs shadow-destructive/24 inset-shadow-control-highlight transition-all duration-150 [&_svg]:pointer-events-none",
+              isStopping
+                ? "cursor-default opacity-50"
+                : "cursor-pointer hover:bg-destructive hover:scale-105 active:inset-shadow-control-pressed active:shadow-none",
               insidePendingAction ? "size-8 sm:size-7" : "size-8 sm:h-8 sm:w-8",
             )}
             {...pointerFocusProps}
-            disabled={!canOperateThread}
+            disabled={!canOperateThread || isStopping}
             onClick={() => {
-              if (canOperateThread) onInterrupt();
+              if (canOperateThread && !isStopping) onInterrupt();
             }}
-            aria-label="Stop generation"
+            aria-label={isStopping ? "Stopping" : "Stop generation"}
           />
         }
       >
@@ -154,7 +160,7 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
           <rect x="2" y="2" width="8" height="8" rx="1.5" />
         </svg>
       </TooltipTrigger>
-      <TooltipPopup>Interrupt</TooltipPopup>
+      <TooltipPopup>{isStopping ? "Stopping..." : "Interrupt"}</TooltipPopup>
     </Tooltip>
   );
 

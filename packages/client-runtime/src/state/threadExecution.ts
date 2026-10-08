@@ -287,6 +287,20 @@ export function threadRuntimeHasInterruptibleRun(
   );
 }
 
+/**
+ * Whether Stop already reached the active run: the server recorded its
+ * interrupt request and the run has not settled yet. Clients show Stop as
+ * in progress instead of offering it again.
+ */
+export function threadRuntimeStopRequested(
+  runtime: ThreadRuntimeSummary | null | undefined,
+  turnItems: OrchestrationV2ThreadProjection["turnItems"] | undefined,
+): boolean {
+  if (!threadRuntimeHasInterruptibleRun(runtime) || turnItems === undefined) return false;
+  const runId = runtime?.activeRunId;
+  return turnItems.some((item) => item.runId === runId && item.type === "run_interrupt_request");
+}
+
 type BackgroundWorkKind = OrchestrationV2PendingBackgroundTask["kind"];
 
 // `order` groups work the way a reader thinks about it: agents first, loose tasks last.

@@ -189,6 +189,8 @@ export interface ThreadDetailScreenProps {
   readonly historyControls?: ThreadFeedHistoryControls;
   readonly activeThreadBusy: boolean;
   readonly canStopThread: boolean;
+  /** Stop reached the run and the server is ending it. */
+  readonly isStoppingThread: boolean;
   /** Set while a queued message is open in the composer for editing. */
   readonly queuedRunEdit: QueuedRunEdit | null;
   readonly composerDraftKey: string | null;
@@ -1390,6 +1392,7 @@ export const ThreadDetailScreen = memo(function ThreadDetailScreen(props: Thread
                         queueCount={props.selectedThreadQueueCount}
                         activeThreadBusy={props.activeThreadBusy}
                         canStopThread={props.canStopThread}
+                        isStoppingThread={props.isStoppingThread}
                         environmentId={props.environmentId}
                         projectCwd={props.threadCwd ?? props.projectWorkspaceRoot}
                         // Follow-ups typed during setup wait in the draft: queueing

@@ -9,6 +9,7 @@ import {
   deriveThreadActivityRun,
   deriveThreadRuntime,
   threadRuntimeHasInterruptibleRun,
+  threadRuntimeStopRequested,
 } from "@t3tools/client-runtime/state/thread-execution";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert } from "react-native";
@@ -467,6 +468,10 @@ export function useThreadComposerState() {
   const interruptibleRunId = threadRuntimeHasInterruptibleRun(selectedThreadRuntime)
     ? (selectedThreadRuntime?.activeRunId ?? null)
     : null;
+  const stopRequested = threadRuntimeStopRequested(
+    selectedThreadRuntime,
+    selectedThreadProjection?.projection.turnItems,
+  );
 
   const cancelQueuedRunEdit = useCallback(() => {
     if (selectedThreadKey === null || savingQueuedEditRef.current) return;
@@ -1077,6 +1082,7 @@ export function useThreadComposerState() {
     interactionMode,
     activeThreadBusy,
     interruptibleRunId,
+    stopRequested,
     onChangeDraftMessage,
     onPickDraftMedia,
     onPickDraftFiles,

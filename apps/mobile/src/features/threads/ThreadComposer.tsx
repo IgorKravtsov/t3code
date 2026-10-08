@@ -162,6 +162,8 @@ export interface ThreadComposerProps {
   readonly queueCount: number;
   readonly activeThreadBusy: boolean;
   readonly canStopThread: boolean;
+  /** Stop reached the run and the server is ending it. */
+  readonly isStoppingThread: boolean;
   readonly environmentId: EnvironmentId;
   readonly projectCwd: string | null;
   /** Why sending is blocked right now (shown as the send button's label), or null. */
@@ -1056,10 +1058,10 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
                 />
                 {showStopAction ? (
                   <ComposerActionButton
-                    accessibilityLabel="Stop agent"
+                    accessibilityLabel={props.isStoppingThread ? "Stopping agent" : "Stop agent"}
                     icon="stop.fill"
                     variant="danger"
-                    disabled={!props.canOperateThread}
+                    disabled={!props.canOperateThread || props.isStoppingThread}
                     onPress={props.onStopThread}
                   />
                 ) : (
@@ -1151,10 +1153,10 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
                   />
                   {showStopAction ? (
                     <ComposerActionButton
-                      accessibilityLabel="Stop agent"
+                      accessibilityLabel={props.isStoppingThread ? "Stopping agent" : "Stop agent"}
                       icon="stop.fill"
                       variant="danger"
-                      disabled={!props.canOperateThread}
+                      disabled={!props.canOperateThread || props.isStoppingThread}
                       onPress={props.onStopThread}
                     />
                   ) : voicePresentation.showsSend ? (

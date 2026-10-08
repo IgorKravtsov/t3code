@@ -28,6 +28,7 @@ import {
   deriveThreadActivityRun,
   deriveThreadRuntime,
   threadRuntimeHasInterruptibleRun,
+  threadRuntimeStopRequested,
 } from "./threadExecution.ts";
 import { threadRuntimeCanArchive, type ThreadRuntimeSummary } from "./models.ts";
 
@@ -189,6 +190,38 @@ describe("thread execution presentation", () => {
       activeRunId: runningRun.id,
     });
     expect(threadRuntimeHasInterruptibleRun(runtime)).toBe(true);
+  });
+
+  it("reports Stop as in progress only while the stopped run is still active", () => {
+    const runningRun = run("run-stopping", 1, "running");
+    const stopRequest = {
+      id: TurnItemId.make("interrupt-request"),
+      threadId: v2Projection.thread.id,
+      runId: runningRun.id,
+      nodeId: NodeId.make("node-stopping"),
+      providerThreadId: null,
+      providerTurnId: null,
+      nativeItemRef: null,
+      parentItemId: null,
+      ordinal: 1,
+      type: "run_interrupt_request" as const,
+      status: "completed" as const,
+      title: "Interrupt requested",
+      startedAt: now,
+      completedAt: now,
+      updatedAt: now,
+      message: "Interrupt requested",
+    };
+    const running = { ...v2Projection, runs: [runningRun], updatedAt: now };
+    expect(threadRuntimeStopRequested(deriveThreadRuntime(running), [])).toBe(false);
+    expect(threadRuntimeStopRequested(deriveThreadRuntime(running), [stopRequest])).toBe(true);
+
+    const interrupted = {
+      ...v2Projection,
+      runs: [{ ...runningRun, status: "interrupted" as const, completedAt: now }],
+      updatedAt: now,
+    };
+    expect(threadRuntimeStopRequested(deriveThreadRuntime(interrupted), [stopRequest])).toBe(false);
   });
 
   it("presents a held queue as the stopped run instead of queued work", () => {
