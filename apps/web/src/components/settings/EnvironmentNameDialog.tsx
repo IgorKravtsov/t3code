@@ -1,9 +1,10 @@
 import { useState } from "react";
-import type { EnvironmentId, ServerConfig } from "@t3tools/contracts";
+import { AuthSettingsWriteScope, type EnvironmentId, type ServerConfig } from "@t3tools/contracts";
 import { squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
 import { AsyncResult } from "effect/reactivity";
 
 import { serverEnvironment } from "../../state/server";
+import { useEnvironmentScope } from "../../state/session";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -15,7 +16,6 @@ import {
   DialogDescription,
   DialogFooter,
 } from "../ui/dialog";
-import { useEnvironmentOperateAccess } from "./EnvironmentIconPicker";
 
 export function EnvironmentNameDialog(props: {
   readonly environmentId: EnvironmentId;
@@ -23,7 +23,7 @@ export function EnvironmentNameDialog(props: {
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
 }) {
-  const access = useEnvironmentOperateAccess(props.environmentId);
+  const canWriteSettings = useEnvironmentScope(props.environmentId, AuthSettingsWriteScope);
   const update = useAtomCommand(serverEnvironment.updateSettings, { reportFailure: false });
   const [name, setName] = useState(props.serverConfig?.settings.environmentName ?? "");
   const [saving, setSaving] = useState(false);
@@ -33,7 +33,7 @@ export function EnvironmentNameDialog(props: {
       ? "Connect to this environment to rename it."
       : props.serverConfig.environment.capabilities.environmentName !== true
         ? "Update this environment's server to rename it."
-        : access !== "granted"
+        : !canWriteSettings
           ? "Your session cannot change this environment's settings."
           : null;
 
