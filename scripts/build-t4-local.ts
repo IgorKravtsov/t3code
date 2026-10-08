@@ -77,10 +77,6 @@ const gitOutput = (arguments_: string[]) =>
     encoding: "utf8",
   }).trim();
 if (!args.has("--install-prepared")) await build();
-if (args.has("--prepare-only")) {
-  Effect.runSync(Effect.log(`Prepared T4 build in ${output}.`));
-  process.exit(0);
-}
 
 async function build() {
   const rust = NodeChildProcess.spawnSync("rustc", ["--version"], { encoding: "utf8" });
@@ -183,6 +179,35 @@ async function migrateProfileAndCredentials() {
   );
 }
 
+const install =
+  platform === "mac"
+    ? NodePath.join(home, "Applications", "T4 Code.app")
+    : NodePath.join(home, ".local", "share", "t4code", "app");
+await NodeFSP.mkdir(NodePath.dirname(install), { recursive: true });
+// Copying the bundle takes tens of seconds, so it happens while the old app still runs.
+// After it exits, installing is two renames and the new app launches right away.
+const staged = install + ".next";
+if (!args.has("--install-prepared") || !(await exists(staged))) {
+  const built =
+    platform === "mac"
+      ? NodePath.join(output, architecture === "arm64" ? "mac-arm64" : "mac", "T4 Code.app")
+      : NodePath.join(output, "linux" + (architecture === "arm64" ? "-arm64" : "") + "-unpacked");
+  if (!(await exists(built))) throw new Error(`Missing built application: ${built}`);
+  await NodeFSP.rm(staged, { recursive: true, force: true });
+  await NodeFSP.cp(built, staged, { recursive: true, verbatimSymlinks: true });
+}
+// Daily updates would otherwise accumulate full application copies; keep only the last one.
+for (const entry of await NodeFSP.readdir(NodePath.dirname(install)))
+  if (entry.startsWith(NodePath.basename(install) + ".previous-"))
+    await NodeFSP.rm(NodePath.join(NodePath.dirname(install), entry), {
+      recursive: true,
+      force: true,
+    });
+if (args.has("--prepare-only")) {
+  Effect.runSync(Effect.log(`Prepared T4 build in ${staged}.`));
+  process.exit(0);
+}
+
 if (waitPid !== undefined) {
   // The updater spawns this before quitting; replace the app only after it has exited.
   const running = () => {
@@ -196,25 +221,8 @@ if (waitPid !== undefined) {
   while (running()) await new Promise((resolve) => setTimeout(resolve, 500));
 }
 
-const install =
-  platform === "mac"
-    ? NodePath.join(home, "Applications", "T4 Code.app")
-    : NodePath.join(home, ".local", "share", "t4code", "app");
-await NodeFSP.mkdir(NodePath.dirname(install), { recursive: true });
-const built =
-  platform === "mac"
-    ? NodePath.join(output, architecture === "arm64" ? "mac-arm64" : "mac", "T4 Code.app")
-    : NodePath.join(output, "linux" + (architecture === "arm64" ? "-arm64" : "") + "-unpacked");
-if (!(await exists(built))) throw new Error(`Missing built application: ${built}`);
 if (await exists(install)) {
   const old = install + ".previous-" + Effect.runSync(Clock.currentTimeMillis);
-  // Daily updates would otherwise accumulate full application copies; keep only the last one.
-  for (const entry of await NodeFSP.readdir(NodePath.dirname(install)))
-    if (entry.startsWith(NodePath.basename(install) + ".previous-"))
-      await NodeFSP.rm(NodePath.join(NodePath.dirname(install), entry), {
-        recursive: true,
-        force: true,
-      });
   await NodeFSP.rename(install, old);
   Effect.runSync(
     Effect.log(
@@ -222,7 +230,7 @@ if (await exists(install)) {
     ),
   );
 }
-await NodeFSP.cp(built, install, { recursive: true, verbatimSymlinks: true });
+await NodeFSP.rename(staged, install);
 const executable =
   platform === "mac"
     ? NodePath.join(install, "Contents", "MacOS", "T4 Code")
@@ -287,6 +295,11 @@ await NodeFSP.writeFile(
   ) + "\n",
   { mode: 0o600 },
 );
+// Launch before this slow cleanup, which removes multi-GB source worktrees.
+if (args.has("--launch")) {
+  const child = NodeChildProcess.spawn(launcher, [], { detached: true, stdio: "ignore" });
+  child.unref();
+}
 // Each source worktree holds a full install (several GB). The launchers now use this one.
 for (const entry of gitOutput(["worktree", "list", "--porcelain"]).split("\n")) {
   const path = entry.startsWith("worktree ") ? entry.slice("worktree ".length) : undefined;
@@ -298,7 +311,3 @@ for (const entry of gitOutput(["worktree", "list", "--porcelain"]).split("\n")) 
 Effect.runSync(
   Effect.log(`Installed ${NodePath.basename(install)}. Run ${launcher}. Source build: ${worktree}`),
 );
-if (args.has("--launch")) {
-  const child = NodeChildProcess.spawn(launcher, [], { detached: true, stdio: "ignore" });
-  child.unref();
-}
