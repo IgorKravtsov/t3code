@@ -160,7 +160,8 @@ process.stdin.on('end',()=>void run());
           "--args",
           helper,
         ],
-        { stdio: "ignore" },
+        // `open` forwards its own environment, so an inherited ELECTRON_RUN_AS_NODE would start plain Node.
+        { stdio: "ignore", env: helperEnvironment },
       );
       const completed = new Promise<void>((resolve, reject) => {
         child.once("error", reject);
