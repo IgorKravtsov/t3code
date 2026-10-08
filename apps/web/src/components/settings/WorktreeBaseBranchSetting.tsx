@@ -1,3 +1,4 @@
+import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
 import { useRef } from "react";
 import { Input } from "../ui/input";
 import { SettingResetButton, SettingsRow } from "./settingsLayout";
@@ -22,10 +23,24 @@ export function WorktreeBaseBranchSetting() {
     )
   )
     return null;
+  // The base ref only seeds new worktrees, so call it out when every selected
+  // target starts new threads in the current checkout instead.
+  const startsInCurrentCheckout =
+    targets.length > 0 &&
+    targets.every(
+      (target) =>
+        resolveProjectSettings(target.settings, null, null, null).settings.defaultThreadEnvMode ===
+        "local",
+    );
   return (
     <SettingsRow
       {...searchableSetting("worktree-base-branch")}
-      description="Base ref for new worktrees, such as origin/GA. Leave empty to use the repository's default branch. An explicitly selected branch takes priority."
+      description="Base ref for threads that start in a new worktree, such as origin/GA. Leave empty to use the repository's default branch. An explicitly selected branch takes priority."
+      status={
+        startsInCurrentCheckout
+          ? "New threads start in the current checkout and keep its branch. This applies only when you pick New worktree."
+          : undefined
+      }
       serverScoped
       settingKeys={["defaultWorktreeBaseBranch"]}
       resetAction={

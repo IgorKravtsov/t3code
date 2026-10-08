@@ -14,7 +14,7 @@ export function WorktreeDefaultsSettings(props: {
     <SettingsSection title="New worktrees">
       <WorktreeTextSetting
         label="Default worktree base branch"
-        description="Base ref, such as origin/GA. Empty uses the repository default. An explicitly selected branch takes priority."
+        description="Base ref for threads that start in a new worktree, such as origin/GA. Current checkout threads keep the checkout's branch. Empty uses the repository default. An explicitly selected branch takes priority."
         value={props.baseBranch}
         disabled={props.disabled}
         onChange={(value) => props.onChange({ defaultWorktreeBaseBranch: value })}
