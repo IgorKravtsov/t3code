@@ -18,8 +18,8 @@ T3 on the same machines: omarchy `t3code.service` → `:8443`, M1 `com.t3tools.t
 `:443`. Work that must survive the M4 closing its lid runs in the omarchy or M1 environment; the
 M4's own environment stops when the app quits or the Mac sleeps.
 
-The source checkout is `~/usr/projects/t4-code` on the M4, a worktree of `~/usr/projects/t3code`
-on branch `t4-code` (pushed to `origin` = `IgorKravtsov/t3code`).
+The source checkout is `~/usr/projects/t3code` on the M4, on branch `t4-code` (pushed to
+`origin` = `IgorKravtsov/t3code`).
 
 ## Headless servers (omarchy and M1)
 
