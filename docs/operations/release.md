@@ -6,6 +6,9 @@ This document covers the unified release workflow for stable and nightly desktop
 
 ## Separate local T4 Code build
 
+Where T4 runs on each machine, and how to restart, update and diagnose it:
+[t4-machines.md](./t4-machines.md).
+
 On Linux or macOS, install Node 24, pnpm 11.10 and Rust via rustup, then run from this branch:
 
 ```sh
