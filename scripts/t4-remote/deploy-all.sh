@@ -125,7 +125,7 @@ fi
 
 # --- 2. Which targets need it -------------------------------------------------------------
 # What an install does not contain; changes there alone need no rebuild.
-NOT_SHIPPED=(':!docs' ':!apps/mobile' ':!apps/marketing' ':!.agents' ':!*.md')
+NOT_SHIPPED=(':!docs' ':!apps/mobile' ':!apps/marketing' ':!.agents' ':!*.md' ':!scripts/t4-remote/deploy-all.sh')
 SERVER_NOT_SHIPPED=("${NOT_SHIPPED[@]}" ':!apps/desktop')
 DESKTOP_NOT_SHIPPED=("${NOT_SHIPPED[@]}" ':!scripts/t4-remote')
 DEPLOY=() BUILT=() pids=()

@@ -175,7 +175,7 @@ What it does, in order:
    the script stops and deploys nothing. Fix the regression on `t4-code`, push, and run again.
    `--skip-tests` skips the guard; use it only right after a guard passed for the same commit.
 2. **Per target decision.** It skips a target that already has this commit, and one where
-   nothing it ships changed (docs, mobile, marketing and agent files never count; desktop code
+   nothing it ships changed (docs, mobile, marketing, agent files and `deploy-all.sh` never count; desktop code
    does not count for servers, and the server deploy scripts do not count for the app). A server
    with a running turn is skipped as well, because installing restarts it and interrupts the
    turn. Rerun later, or pass `--force` to override all skips.
