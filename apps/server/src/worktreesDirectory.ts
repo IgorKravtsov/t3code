@@ -1,7 +1,7 @@
 import type { ProjectId, ProjectSettingsOverrides } from "@t3tools/contracts";
 import type * as Path from "effect/Path";
 
-import { expandHomePathWith } from "./pathExpansion.ts";
+import { expandHomePathWith } from "@t3tools/provider-core/server/pathExpansion";
 
 /**
  * Directory new worktrees are created under: the `worktreesDirectory`
