@@ -3,6 +3,7 @@
 > Runbook for the `t4-code` fork as deployed on Ihor's machines: what runs where, how to check
 > it, restart it, update it and diagnose it. Building the local desktop app itself is covered in
 > [release.md](./release.md#separate-local-t4-code-build).
+> What the fork changes compared with stock T3: [t4-differences.md](./t4-differences.md).
 
 T4 runs **beside** stock T3 on every machine and never shares its data: T3 keeps `~/.t3` and
 port 3773, T4 uses `~/.t4` and port 3774. Never run two servers against the same data home, and

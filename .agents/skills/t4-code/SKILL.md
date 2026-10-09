@@ -18,6 +18,8 @@ the setup changes:
 - [docs/operations/release.md#separate-local-t4-code-build](../../../docs/operations/release.md#separate-local-t4-code-build):
   building the local desktop app, the in-app upstream updater (**Merge & rebuild** /
   **Rebuild**), `t4-sync` and `t4-replace`.
+- [docs/operations/t4-differences.md](../../../docs/operations/t4-differences.md): what the
+  fork changes compared with stock T3, and what a merge with upstream has to carry.
 
 ## Map
 
