@@ -79,4 +79,6 @@ The matching user guides are [remote-access.md](../user/remote-access.md#name-a-
   `ConnectionsSettings.tsx`, `ChatView.tsx`, `ChatComposer.tsx`, `serverSettings.ts`,
   `packages/contracts/src/settings.ts` and the user docs. Keep both sides unless upstream now
   provides the same feature.
+- Every T4 difference needs a test in a file the fork changes: `deploy-all.sh` runs those
+  files and refuses to deploy a merge that breaks one.
 - When you add or drop a difference, update this page in the same commit.

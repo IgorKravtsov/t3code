@@ -2,10 +2,12 @@
 # Installs a T4 server archive from build-cli.sh as an independent headless server in ~/.t4
 # and runs it as its own user service (systemd t4code.service / launchd
 # com.t4tools.t4code.service). Re-running it upgrades and restarts. Never touches ~/.t3.
-# Usage: install-service.sh <archive.tar.gz> <version> <port>
+# Usage: install-service.sh <archive.tar.gz> <version> <port> [commit]
+# The commit is recorded in ~/.t4/runtime/t4-commit for deploy-all.sh. An already installed
+# version needs no archive, which is how a rollback reinstalls the previous one.
 # See docs/operations/t4-machines.md.
 set -euo pipefail
-ARCHIVE=$1 VERSION=$2 PORT=$3
+ARCHIVE=$1 VERSION=$2 PORT=$3 COMMIT=${4:-}
 T4="$HOME/.t4"
 VERSIONS="$T4/runtime/versions"
 DEST="$VERSIONS/$VERSION"
@@ -23,6 +25,7 @@ if [ ! -f "$DEST/.install-complete" ]; then
 fi
 "$DEST/t3" --version
 printf '{\n  "protocol": 3,\n  "activeVersion": "%s"\n}\n' "$VERSION" > "$T4/runtime/service-state.json"
+if [ -n "$COMMIT" ]; then printf '%s\n' "$COMMIT" > "$T4/runtime/t4-commit"; else rm -f "$T4/runtime/t4-commit"; fi
 
 LOG="$T4/userdata/logs/boot-service.log"
 case "$(uname -s)" in

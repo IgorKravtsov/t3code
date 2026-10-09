@@ -134,34 +134,34 @@ server.
 
 ## Updating the servers
 
-Merge upstream and push `t4-code` first (the T4 app's **Merge & rebuild**, or by hand), then
-build each platform's archive natively and install it. Installing restarts the service, which
-interrupts running turns; they continue afterwards.
-
-The script resets its own checkout, so run a copy of it, never the file inside
-`~/.local/share/t4code-build/cli-src`. The archive name carries the version:
-`t3-<version>-<os>-<arch>.tar.gz`.
-
-omarchy builds its own Linux archive (Node 24, Rust and mise are installed there):
+Merge upstream and push `t4-code` first (the T4 app's **Merge & rebuild**, or by hand), then run
+on the M4, from the main checkout at `origin/t4-code`:
 
 ```sh
-scp scripts/t4-remote/build-cli.sh scripts/t4-remote/install-service.sh omarchy:/tmp/
-ssh omarchy 'mise exec node@24 -- bash /tmp/build-cli.sh'
-ssh omarchy 'bash /tmp/install-service.sh ~/.local/share/t4code-build/cli-src/release-cli/t3-<version>-linux-x64.tar.gz <version> 3774'
+scripts/t4-remote/deploy-all.sh --dry-run   # checks only
+scripts/t4-remote/deploy-all.sh             # omarchy and the M1; or name hosts
 ```
 
-M1 has no toolchain; build on the M4 (same architecture) and copy:
+It refuses to deploy when the merge lost T4 behaviour: it runs every test file the fork changes
+and stops on a test that fails on `t4-code` but passes on the upstream commit that was merged.
+Tests that fail on upstream too are listed and ignored, and some only pass with
+`ELECTRON_RUN_AS_NODE` unset, which the script does. It then skips a host that already runs the
+commit (recorded in `~/.t4/runtime/t4-commit`), one where nothing in the server archive
+changed, and one with a running turn, because installing restarts the service. `--force`
+overrides those skips. Each host builds its own archive in parallel. After installing, the script
+checks the version and the T4 capabilities, and rolls back to the previous version if the new
+server does not come up as T4. Logs are in `~/.local/share/t4code-build/deploy/`.
 
-```sh
-cp scripts/t4-remote/build-cli.sh /tmp/ && PATH="$(mise where node@24)/bin:$PATH" bash /tmp/build-cli.sh
-scp ~/.local/share/t4code-build/cli-src/release-cli/t3-<version>-darwin-arm64.tar.gz \
-  scripts/t4-remote/install-service.sh mac-m1-pro:/tmp/
-ssh mac-m1-pro 'bash /tmp/install-service.sh /tmp/t3-<version>-darwin-arm64.tar.gz <version> 3774'
-```
+By hand, one host: copy `build-cli.sh` and `install-service.sh` there (never run the file inside
+`~/.local/share/t4code-build/cli-src`, which the script resets), then run
+`mise exec node@24 -- bash build-cli.sh` and
+`bash install-service.sh <archive> <version> 3774 [commit]`. The archive name carries the
+version: `t3-<version>-<os>-<arch>.tar.gz`. Both hosts build natively; they need git, rustup and
+mise, and the build installs Node, pnpm and Rust 1.95 as needed. Its temporary files go under
+`~/.cache` because omarchy's `/tmp` is a small tmpfs.
 
-The build script unsets `ELECTRON_RUN_AS_NODE`, which T3 terminals export. `install-service.sh` keeps old versions under
-`~/.t4/runtime/versions`; to roll back, rerun it with the older archive or point
-`service-state.json` and the unit's `ExecStart` back and restart.
+`install-service.sh` keeps old versions under `~/.t4/runtime/versions`; to roll back by hand,
+rerun it with an installed version (`install-service.sh - <old-version> 3774`).
 
 ## Data
 

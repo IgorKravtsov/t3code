@@ -37,12 +37,12 @@ omarchy or the M1; the M4 environment stops when its app quits or the Mac sleeps
 - **Local desktop app, first install or manual rebuild:** `node scripts/build-t4-local.ts --launch`
   (Node 24, pnpm, Rust). Normally the app's own updater does this.
 - **Upstream T3 changed:** **Merge & rebuild** in the T4 app (merge icon in the sidebar footer),
-  or merge `upstream/main` into `t4-code` by hand and push. Then redeploy the headless servers if
-  server code changed.
-- **Headless servers:** `scripts/t4-remote/build-cli.sh` builds an archive from
-  `origin/t4-code`, `scripts/t4-remote/install-service.sh <archive> <version> 3774` installs it
-  and restarts the service. omarchy builds its own; the M1 gets an archive built on the M4. Exact
-  commands are in t4-machines.md under "Updating the servers".
+  or merge `upstream/main` into `t4-code` by hand and push. Then redeploy the headless servers.
+- **Headless servers:** `scripts/t4-remote/deploy-all.sh` on the M4 (`--dry-run` first). It
+  stops if the merge broke T4 tests, skips hosts that are current or running a turn, builds on
+  each host and rolls back a server that does not come up as T4. Ask before running it while the
+  user may be working on omarchy or the M1. Details and the by-hand steps are in t4-machines.md
+  under "Updating the servers".
 - **Pairing a phone or Mac:** `t3 auth pairing create --base-dir ~/.t4 ...` on the target host;
   see "Connecting clients".
 - **Bringing T3 data into T4:** `t4-sync` (merge) or `t4-replace` (fresh snapshot), with the T4
