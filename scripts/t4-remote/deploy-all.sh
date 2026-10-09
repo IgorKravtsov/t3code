@@ -1,20 +1,23 @@
 #!/bin/bash
-# Redeploys the headless T4 servers (omarchy and the M1) to the pushed t4-code commit.
+# Brings every T4 install to the pushed t4-code commit: the T4 Code desktop app on this M4
+# (target "m4") and the headless servers on omarchy and the M1 (their ssh host names).
 # Run it by hand on the M4 from the main checkout after merging upstream and pushing.
 #
-# Usage: scripts/t4-remote/deploy-all.sh [--dry-run] [--force] [--skip-tests] [host...]
+# Usage: scripts/t4-remote/deploy-all.sh [--dry-run] [--force] [--skip-tests] [target...]
+#        targets default to: m4 omarchy mac-m1-pro
 #
 #   1. Guard: runs every test file the fork changes relative to upstream. A test that fails
-#      here but passes on the upstream commit we merged means a merge lost T4 behaviour, and
-#      nothing is deployed. Tests that fail on upstream too are reported and ignored.
-#   2. Per host: skips it when it already runs this commit or nothing it ships changed, and
-#      when a turn is running there (installing restarts the server).
-#   3. Builds each host's archive on that host in parallel (build-cli.sh), installs it
-#      (install-service.sh), checks the version and the T4 capabilities, and rolls back to the
+#      here (twice) but passes on the upstream commit we merged means a merge lost T4
+#      behaviour, and nothing is deployed. Tests that fail on upstream too are listed and ignored.
+#   2. Per target: skips it when it already runs this commit or nothing it ships changed. A
+#      server is also skipped while a turn runs there, because installing restarts it.
+#   3. Builds all targets in parallel. m4: build-t4-local.ts installs the app, which takes effect
+#      the next time T4 starts (the running app is not touched). Servers: build-cli.sh on the
+#      host, then install-service.sh, a version and T4-capability check, and a rollback to the
 #      previous version if the new server does not come up as T4.
 #
 # --dry-run stops after the checks, --force ignores "up to date" and running turns.
-# See docs/operations/t4-machines.md.
+# See docs/operations/t4-machines.md#updating-t4.
 set -euo pipefail
 unset ELECTRON_RUN_AS_NODE
 
@@ -29,7 +32,7 @@ for arg in "$@"; do
     *) HOSTS+=("$arg") ;;
   esac
 done
-[ ${#HOSTS[@]} -gt 0 ] || HOSTS=(omarchy mac-m1-pro)
+[ ${#HOSTS[@]} -gt 0 ] || HOSTS=(m4 omarchy mac-m1-pro)
 
 REPO=$(git rev-parse --show-toplevel)
 cd "$REPO"
@@ -120,13 +123,23 @@ if [ "$SKIP_TESTS" = false ]; then
   echo "Guard passed."
 fi
 
-# --- 2. Which hosts need it ---------------------------------------------------------------
-# What a server archive does not contain; changes here alone need no redeploy.
-NOT_SHIPPED=(':!docs' ':!apps/desktop' ':!apps/mobile' ':!apps/marketing' ':!.agents' ':!*.md')
+# --- 2. Which targets need it -------------------------------------------------------------
+# What an install does not contain; changes there alone need no rebuild.
+NOT_SHIPPED=(':!docs' ':!apps/mobile' ':!apps/marketing' ':!.agents' ':!*.md')
+SERVER_NOT_SHIPPED=("${NOT_SHIPPED[@]}" ':!apps/desktop')
+DESKTOP_NOT_SHIPPED=("${NOT_SHIPPED[@]}" ':!scripts/t4-remote')
 DEPLOY=() BUILT=() pids=()
 for host in "${HOSTS[@]}"; do
-  deployed=$(ssh "$host" 'cat ~/.t4/runtime/t4-commit 2>/dev/null' || true)
-  running=$(ssh "$host" "sqlite3 -readonly ~/.t4/userdata/statev2.sqlite \"SELECT count(*) FROM orchestration_v2_projection_runs WHERE status IN ('preparing','starting','running');\"" 2>/dev/null || echo "?")
+  if [ "$host" = m4 ]; then
+    # build-t4-local.ts records the commit it built; building never restarts the running app.
+    deployed=$(node -p 'require(process.argv[1]).builtCommit' "$HOME/.t4/t4-source.json" 2>/dev/null || true)
+    running=0
+    NOT_SHIPPED=("${DESKTOP_NOT_SHIPPED[@]}")
+  else
+    deployed=$(ssh "$host" 'cat ~/.t4/runtime/t4-commit 2>/dev/null' || true)
+    running=$(ssh "$host" "sqlite3 -readonly ~/.t4/userdata/statev2.sqlite \"SELECT count(*) FROM orchestration_v2_projection_runs WHERE status IN ('preparing','starting','running');\"" 2>/dev/null || echo "?")
+    NOT_SHIPPED=("${SERVER_NOT_SHIPPED[@]}")
+  fi
   if [ "$FORCE" = false ] && [ "$deployed" = "$TARGET" ]; then
     echo "$host: already runs ${TARGET:0:10}, skipped"
   elif [ "$FORCE" = false ] && [ -n "$deployed" ] && git cat-file -e "$deployed^{commit}" 2>/dev/null &&
@@ -145,6 +158,11 @@ done
 # --- 3. Build everywhere in parallel, then install one by one -----------------------------
 say "Building on ${DEPLOY[*]} (logs in $WORK)"
 for host in "${DEPLOY[@]}"; do
+  if [ "$host" = m4 ]; then
+    node scripts/build-t4-local.ts >"$WORK/build-m4.log" 2>&1 &
+    pids+=($!)
+    continue
+  fi
   (
     ssh "$host" 'mkdir -p ~/.local/share/t4code-build/scripts'
     scp -q "$SCRIPTS/build-cli.sh" "$SCRIPTS/install-service.sh" "$host:.local/share/t4code-build/scripts/"
@@ -156,7 +174,7 @@ for i in "${!DEPLOY[@]}"; do
   host=${DEPLOY[$i]}
   if wait "${pids[$i]}"; then
     BUILT+=("$host")
-    echo "$host: built $(basename "$(tail -1 "$WORK/build-$host.log")")"
+    [ "$host" = m4 ] || echo "$host: built $(basename "$(tail -1 "$WORK/build-$host.log")")"
   else
     echo "$host: build failed, not installed; see $WORK/build-$host.log" >&2
     tail -5 "$WORK/build-$host.log" | sed 's/^/  /' >&2
@@ -165,6 +183,15 @@ done
 
 FAILURES=$((${#DEPLOY[@]} - ${#BUILT[@]}))
 for host in ${BUILT[@]+"${BUILT[@]}"}; do
+  if [ "$host" = m4 ]; then
+    if [ "$(node -p 'require(process.argv[1]).builtCommit' "$HOME/.t4/t4-source.json")" = "$TARGET" ]; then
+      echo "m4: T4 Code.app installed at ${TARGET:0:10}; it takes effect the next time T4 starts"
+    else
+      FAILURES=$((FAILURES + 1))
+      echo "m4: build finished but ~/.t4/t4-source.json does not record ${TARGET:0:10}; see $WORK/build-m4.log" >&2
+    fi
+    continue
+  fi
   archive=$(tail -1 "$WORK/build-$host.log")
   version=$(basename "$archive" | sed -E 's/^t3-(.*)-(darwin|linux)-[a-z0-9]+\.tar\.gz$/\1/')
   previous=$(ssh "$host" 'cat ~/.t4/runtime/service-state.json' | sed -n 's/.*"activeVersion": *"\([^"]*\)".*/\1/p' || true)
@@ -185,4 +212,4 @@ for host in ${BUILT[@]+"${BUILT[@]}"}; do
       echo "$host: ROLLBACK FAILED, check it by hand; see $WORK/build-$host.log" >&2
   fi
 done
-[ "$FAILURES" -eq 0 ] && say "Done." || { say "$FAILURES host(s) not updated."; exit 1; }
+[ "$FAILURES" -eq 0 ] && say "Done." || { say "$FAILURES target(s) not updated."; exit 1; }

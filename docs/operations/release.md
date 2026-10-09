@@ -38,7 +38,9 @@ and whether they merge cleanly; conflicting files are listed and the update stay
 until `t4-code` is reconciled by hand. **Merge & rebuild** creates the merge commit without
 touching any checkout, builds it in a new worktree, pushes `t4-code` to `origin`, fast-forwards
 the local branch, then installs and relaunches T4 after it quits. The branch moves only after a
-successful build; the build log is `~/.t4/t4-update.log`. When `origin/t4-code` is ahead of the
+successful build; the build log is `~/.t4/t4-update.log`. The button updates only this Mac's app; run
+`scripts/t4-remote/deploy-all.sh` afterwards to update the other machines
+([t4-machines.md](./t4-machines.md#updating-t4)). When `origin/t4-code` is ahead of the
 installed build (for example, merged on another machine), the same control offers **Rebuild**.
 At every start, T4 also applies settings changed in local T3 since the previous start
 (`settings.json`, client, desktop and keybinding settings), keeping values edited in T4; the

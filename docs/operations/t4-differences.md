@@ -49,8 +49,9 @@ upstream ships an equivalent, drop the T4 version during the merge instead of ke
   startup, at 09:00 and 18:00, and on demand. It merges, builds in a separate worktree, pushes
   `t4-code`, and relaunches. When the merge conflicts it lists the files and waits for a manual
   merge; when `origin/t4-code` is ahead of the installed build it offers **Rebuild**.
-- **Headless servers** are rebuilt and reinstalled with `scripts/t4-remote/build-cli.sh` and
-  `install-service.sh`.
+- **One deploy command.** `scripts/t4-remote/deploy-all.sh` brings the M4 app and both
+  headless servers to the pushed commit, after a test guard that stops a merge which lost T4
+  behaviour ([t4-machines.md](./t4-machines.md#updating-t4)).
 - **SSH Persist reuse.** The SSH runner can reuse a remote host's installed Persist runtime
   instead of downloading a published release archive, which a local fork build cannot provide
   (`packages/ssh/src/tunnel.ts`, `reusePersistentService`).

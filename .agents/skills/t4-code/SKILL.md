@@ -1,6 +1,6 @@
 ---
 name: t4-code
-description: Build, install, deploy and operate T4 Code, the `t4-code` fork of T3 Code on Ihor's machines. Use for building the local T4 desktop app, merging upstream and rebuilding, redeploying the headless T4 servers on omarchy and the M1, checking or restarting them, pairing clients, syncing T3 data into T4, and diagnosing a T4 install. Also use when asked which machines run T4, which ports or URLs they use, or how to use T4 alongside T3.
+description: Build, install, deploy and operate T4 Code, the `t4-code` fork of T3 Code on Ihor's machines. Use for building the local T4 desktop app, merging upstream T3 into t4-code, updating every T4 machine (the M4 app, omarchy and the M1) with scripts/t4-remote/deploy-all.sh, checking or restarting them, pairing clients, syncing T3 data into T4, and diagnosing a T4 install. Also use when asked which machines run T4, which ports or URLs they use, or how to use T4 alongside T3.
 ---
 
 # T4 Code
@@ -13,8 +13,8 @@ The docs are the source of truth. Read the section you need before acting, and u
 the setup changes:
 
 - [docs/operations/t4-machines.md](../../../docs/operations/t4-machines.md): what runs where,
-  status/logs/restart, staying up, GitHub accounts on omarchy, pairing clients, updating the
-  headless servers, data migration, troubleshooting.
+  status/logs/restart, staying up, GitHub accounts on omarchy, pairing clients, **updating T4**
+  (merge upstream, then `deploy-all.sh`), data migration, troubleshooting.
 - [docs/operations/release.md#separate-local-t4-code-build](../../../docs/operations/release.md#separate-local-t4-code-build):
   building the local desktop app, the in-app upstream updater (**Merge & rebuild** /
   **Rebuild**), `t4-sync` and `t4-replace`.
@@ -34,15 +34,17 @@ omarchy or the M1; the M4 environment stops when its app quits or the Mac sleeps
 
 ## Which task, which tool
 
-- **Local desktop app, first install or manual rebuild:** `node scripts/build-t4-local.ts --launch`
-  (Node 24, pnpm, Rust). Normally the app's own updater does this.
-- **Upstream T3 changed:** **Merge & rebuild** in the T4 app (merge icon in the sidebar footer),
-  or merge `upstream/main` into `t4-code` by hand and push. Then redeploy the headless servers.
-- **Headless servers:** `scripts/t4-remote/deploy-all.sh` on the M4 (`--dry-run` first). It
-  stops if the merge broke T4 tests, skips hosts that are current or running a turn, builds on
-  each host and rolls back a server that does not come up as T4. Ask before running it while the
-  user may be working on omarchy or the M1. Details and the by-hand steps are in t4-machines.md
-  under "Updating the servers".
+- **Update T4 (upstream T3 changed, or new commits on `t4-code`):** two steps, both on the M4 in
+  `~/usr/projects/t3code`. 1) Merge `upstream/main` into `t4-code` and push: **Merge & rebuild**
+  in the T4 app, or by hand when it conflicts (keep both sides; see t4-differences.md). 2) `scripts/t4-remote/deploy-all.sh --dry-run`, then without `--dry-run`. It updates all three
+  machines: the M4 app (`m4`), `omarchy` and `mac-m1-pro`. It stops if the merge broke a T4
+  test that passes upstream, skips machines that are current or running a turn, and rolls back a
+  server that does not come up as T4. Full description: t4-machines.md, "Updating T4".
+- **Check what a machine runs:** m4 `~/.t4/t4-source.json` (`builtCommit`); servers
+  `~/.t4/runtime/t4-commit` and `curl -fsS <tailnet URL>/.well-known/t3/environment`
+  (`serverVersion`). `deploy-all.sh --dry-run --skip-tests` prints all three.
+- **Local desktop app, first install:** `node scripts/build-t4-local.ts --launch` (Node 24,
+  pnpm, Rust); see release.md.
 - **Pairing a phone or Mac:** `t3 auth pairing create --base-dir ~/.t4 ...` on the target host;
   see "Connecting clients".
 - **Bringing T3 data into T4:** `t4-sync` (merge) or `t4-replace` (fresh snapshot), with the T4
@@ -57,9 +59,16 @@ omarchy or the M1; the M4 environment stops when its app quits or the Mac sleeps
   services set `T3CODE_RELEASE_BASE_URL=https://t4-updates.invalid` so it fails instead. Update
   T4 servers by redeploying. On the stock T3 servers (`~/.t3`) the button works as usual, so
   check which server a prompt is about.
-- Run copies of `build-cli.sh` (from `/tmp`), never the file inside
-  `~/.local/share/t4code-build/cli-src`, which the script resets.
+- Run copies of `build-cli.sh` (`deploy-all.sh` copies it to the host), never the file inside
+  `~/.local/share/t4code-build/cli-src`, which the build resets.
 - Installing or restarting a service interrupts running turns (they resume afterwards). Tell the
   user before restarting a server they may be working on.
+- You may be running inside T4 on the M4. Building the M4 app is safe; the new build applies when
+  T4 restarts. Never quit or relaunch T4 yourself (no `--launch`), since that ends your own
+  session; ask the user to restart it.
+- A guard failure means lost T4 behaviour: fix it, do not bypass it with `--skip-tests`. When
+  adding a T4 feature, give it a test in a file the fork changes, so the guard covers it.
+- Agent sessions in T3/T4 export `ELECTRON_RUN_AS_NODE=1`; unset it before running tests or
+  builds by hand (`env -u ELECTRON_RUN_AS_NODE ...`).
 - Edit `scripts/t4-remote/install-service.sh`, not the installed unit or plist.
 - Prefer headless services; do not set up the desktop GUI as a server.
