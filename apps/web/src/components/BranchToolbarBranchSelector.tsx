@@ -580,13 +580,20 @@ export function BranchToolbarBranchSelector({
     [handleOpenChange, isBranchActionPending, isInitialBranchesLoadPending],
   );
 
-  const triggerLabel = resolveBranchTriggerLabel({
+  // Only an unsent draft can name its new worktree's branch.
+  const canNameNewBranch = isSelectingWorktreeBase && draftThread != null && serverThread === null;
+  const newBranchName = canNameNewBranch ? (draftThread?.newBranchName ?? "") : "";
+  const sanitizedNewBranchName = sanitizeNewRefName(newBranchName);
+  const baseTriggerLabel = resolveBranchTriggerLabel({
     activeWorktreePath,
     effectiveEnvMode,
     resolvedActiveBranch,
     resolvedActiveBranchIsRemote,
     startFromOrigin,
   });
+  const triggerLabel = sanitizedNewBranchName
+    ? `${baseTriggerLabel} → ${sanitizedNewBranchName}`
+    : baseTriggerLabel;
 
   // Branch status is the fallback when this thread has no linked pull requests.
   const branchPrBranch = resolveBranchToolbarPrBranch({
@@ -725,6 +732,15 @@ export function BranchToolbarBranchSelector({
       originControl={
         isSelectingWorktreeBase
           ? { checked: startFromOrigin, onCheckedChange: onStartFromOriginChange }
+          : undefined
+      }
+      newBranchControl={
+        canNameNewBranch
+          ? {
+              value: newBranchName,
+              onValueChange: (value) =>
+                setDraftThreadContext(draftId ?? threadRef, { newBranchName: value }),
+            }
           : undefined
       }
       popupProps={{

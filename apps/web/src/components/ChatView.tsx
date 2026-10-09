@@ -11,6 +11,7 @@ import {
 import * as DateTime from "effect/DateTime";
 import { restorePlanFollowUpComposer } from "./ChatView.logic";
 import { assistantCitationsToPlainText } from "@t3tools/shared/assistantCitations";
+import { sanitizeNewRefName } from "@t3tools/shared/git";
 import { prepareQueuedEditAttachments, recoverQueuedMessageEdit } from "./chat/queuedMessageEdit";
 import {
   isPaintOnlyThreadTimeline,
@@ -6964,6 +6965,9 @@ export default function ChatView(props: ChatViewProps) {
       ? (pendingServerThreadStartFromOriginByThreadId[activeThread?.id ?? ""] ??
         activeProjectSettings.settings.newWorktreesStartFromOrigin)
       : false;
+  const newWorktreeBranchName = isLocalDraftThread
+    ? sanitizeNewRefName(draftThread?.newBranchName ?? "") || null
+    : null;
   const sendEnvMode = resolveSendEnvMode({
     requestedEnvMode: envMode,
     isGitRepo,
@@ -9511,7 +9515,7 @@ export default function ChatView(props: ChatViewProps) {
           multipleModelSelectionsRef.current === submittedSelections;
         setThreadError(threadIdForSend, null);
         const starts = Promise.all(
-          multipleTargets.map(async (target) => {
+          multipleTargets.map(async (target, targetIndex) => {
             const retryKey = JSON.stringify([
               routeThreadKey,
               target.selection.instanceId,
@@ -9567,6 +9571,15 @@ export default function ChatView(props: ChatViewProps) {
                       baseBranch: activeThreadBranch!,
                       requireWorktree: true,
                       ...(startFromOrigin ? { startFromOrigin: true } : {}),
+                      // Each model gets its own worktree, so later ones need distinct branches.
+                      ...(newWorktreeBranchName
+                        ? {
+                            branch:
+                              targetIndex === 0
+                                ? newWorktreeBranchName
+                                : `${newWorktreeBranchName}-${targetIndex + 1}`,
+                          }
+                        : {}),
                     },
                     runSetupScript: true,
                   },
@@ -9910,6 +9923,7 @@ export default function ChatView(props: ChatViewProps) {
                       projectCwd: activeProject.workspaceRoot,
                       baseBranch: baseBranchForWorktree,
                       ...(startFromOrigin ? { startFromOrigin: true } : {}),
+                      ...(newWorktreeBranchName ? { branch: newWorktreeBranchName } : {}),
                     },
                     runSetupScript: true,
                   }

@@ -1721,6 +1721,23 @@ describe("composerDraftStore project draft thread mapping", () => {
     expect(useComposerDraftStore.getState().getDraftThread(draftId)?.startFromOrigin).toBe(false);
   });
 
+  it("keeps a typed new worktree branch name until it is cleared", () => {
+    const store = useComposerDraftStore.getState();
+    store.setProjectDraftThreadId(projectRef, draftId, { threadId, envMode: "worktree" });
+    store.setDraftThreadContext(draftId, { newBranchName: "feat/search" });
+    store.setDraftThreadContext(draftId, { startFromOrigin: true });
+
+    expect(useComposerDraftStore.getState().getDraftThread(draftId)?.newBranchName).toBe(
+      "feat/search",
+    );
+
+    store.setDraftThreadContext(draftId, { newBranchName: "" });
+
+    expect(useComposerDraftStore.getState().getDraftThread(draftId)).not.toHaveProperty(
+      "newBranchName",
+    );
+  });
+
   it("preserves existing branch and worktree when setProjectDraftThreadId receives undefined", () => {
     const store = useComposerDraftStore.getState();
     store.setProjectDraftThreadId(projectRef, draftId, {

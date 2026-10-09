@@ -129,6 +129,10 @@ Set **Default worktree base branch** in **Settings → General** to a ref such a
 Leave it empty to use the repository's default branch. A branch explicitly chosen for a new
 thread takes priority; pull request checkouts use the pull request's branch.
 
+New worktree branches are named from your first message. To pick the name yourself, open the
+branch picker of a new-worktree thread before sending and fill in **New branch**. A branch with
+that name must not exist yet.
+
 New worktrees go in the `worktrees` folder of the T3 home directory. Change **Settings → Storage →
 Worktree location** to an absolute path such as `/data/worktrees`, `D:\worktrees` or `~/worktrees`,
 or a path relative to the project's root, such as `../worktrees`. For `/projects/UI`, that relative
