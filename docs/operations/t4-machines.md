@@ -139,8 +139,10 @@ that commit with one command. Everything runs on the M4 from `~/usr/projects/t3c
 
 ### 1. Merge upstream
 
-Either press **Merge & rebuild** in the T4 app (merge icon in the sidebar footer; see
-[release.md](./release.md#separate-local-t4-code-build)), or by hand:
+Either the user presses **Merge & rebuild** in the T4 app (merge icon in the sidebar footer; see
+[release.md](./release.md#separate-local-t4-code-build)), which merges, pushes, rebuilds the M4
+app and relaunches T4 after it quits, or merge by hand. An agent running inside T4 merges by
+hand, because the button ends its own session:
 
 ```sh
 git checkout t4-code && git pull
@@ -149,9 +151,18 @@ git fetch upstream && git merge upstream/main
 ```
 
 The app's button is unavailable while the merge conflicts; it lists the files, and the merge is
-done by hand. Upstream and T4 usually add unrelated things to the same lines, so keep both
-sides. Drop a T4 change only when upstream now ships the same feature, and then update
-[t4-differences.md](./t4-differences.md).
+done by hand. To resolve a conflict:
+
+1. Find out what each side added: `git log --oneline upstream/main -- <file>` for upstream, and
+   [t4-differences.md](./t4-differences.md) (the table under "Product changes") for T4.
+2. Usually both sides added unrelated things to the same lines (one state hook each, one docs
+   paragraph each). Keep both, then check the rest of the merged file still uses both.
+3. Drop the T4 side only when upstream now ships the same feature; then remove it from
+   t4-differences.md in the same commit.
+4. Typecheck the packages you touched (for example `cd apps/web && ../../node_modules/.bin/tsc
+--noEmit`), commit the merge, and push. `deploy-all.sh` then runs the T4 tests.
+
+Where conflicts usually land: t4-differences.md, "Keeping merges clean".
 
 ### 2. Deploy everywhere
 
@@ -161,24 +172,30 @@ scripts/t4-remote/deploy-all.sh             # all targets: m4 omarchy mac-m1-pro
 scripts/t4-remote/deploy-all.sh omarchy     # only the named targets
 ```
 
-Prerequisites: the checkout is on `t4-code` at `origin/t4-code` with a clean tree (the script
-refuses anything else, so it deploys exactly what was pushed); remotes `origin` and `upstream`;
-ssh host aliases `omarchy` and `mac-m1-pro`; Node 24 through mise.
+Prerequisites, all on the M4: the checkout is on `t4-code` at `origin/t4-code` with a clean tree
+(the script refuses anything else, even with `--dry-run`, so it deploys exactly what was
+pushed); dependencies installed (`pnpm install`); remotes `origin` and `upstream`; ssh host
+aliases `omarchy` and `mac-m1-pro`; Node 24 through mise. The hosts need `sqlite3`, git, rustup
+and mise.
 
 What it does, in order:
 
 1. **Guard.** It runs every `*.test.ts` file the fork changes relative to upstream (about 30
-   files, about a minute). Files with failures run again on their own, because some tests fail
-   only under load. A test that still fails is run on the upstream commit that was merged, in a
-   cached checkout at `~/.local/share/t4code-build/upstream-check`. Tests that fail there too
+   files, about a minute). The files with failures run again, without the rest of the suite,
+   because some tests fail only under load. A missing test report counts as a failure. A test that still fails is run on the upstream commit that was merged, in a
+   cached checkout at `~/.local/share/t4code-build/upstream-check` (its `pnpm install` log:
+   `upstream-install.log` in the deploy log directory). Tests that fail there too
    are listed as "fails on upstream too, ignored". Any other failure is a **T4 regression**:
    the script stops and deploys nothing. Fix the regression on `t4-code`, push, and run again.
    `--skip-tests` skips the guard; use it only right after a guard passed for the same commit.
 2. **Per target decision.** It skips a target that already has this commit, and one where
-   nothing it ships changed (docs, mobile, marketing, agent files and `deploy-all.sh` never count; desktop code
-   does not count for servers, and the server deploy scripts do not count for the app). A server
-   with a running turn is skipped as well, because installing restarts it and interrupts the
-   turn. Rerun later, or pass `--force` to override all skips.
+   nothing it ships changed (`docs/`, `apps/mobile`, `apps/marketing`, `.agents/`, every `*.md`
+   file and `deploy-all.sh` never count; `apps/desktop` does not count for servers, and
+   `scripts/t4-remote` does not count for the app). A server with a running turn is skipped
+   too, because installing restarts it and interrupts the turn; so is a server whose database
+   could not be read (shown as `? turn(s) running`). Rerun later, for example
+   `deploy-all.sh omarchy`. `--force` overrides every skip for every named target and
+   interrupts running turns there (they resume after the restart), so ask the user first.
 3. **Build and install, all targets in parallel.**
    - **m4**: `node scripts/build-t4-local.ts` builds the desktop app and installs
      `~/Applications/T4 Code.app`. The running app keeps working (its bundle is renamed to
@@ -188,18 +205,31 @@ What it does, in order:
      `~/.local/share/t4code-build/scripts/` on the host), then `install-service.sh` installs it
      and restarts the service. The script checks that the server answers with the new version
      and the T4 capabilities (`environmentName`, `projectWorktreeDefaults`); otherwise it
-     reinstalls the previous version.
+     reinstalls the previous version. On a host without a previous version it reports the
+     failure and leaves the host as it is.
 
-It exits 0 only when every chosen target is current. Logs:
+Exit status: 0 when every chosen target is current, 3 when the only problem is a server skipped
+for running turns (rerun later), 1 for anything else (guard failure, failed build or install).
+If **Merge & rebuild** already rebuilt the M4 app, `m4` is reported as current. Logs:
 `~/.local/share/t4code-build/deploy/build-<target>.log`, guard reports `guard-t4.json` and
 `guard-upstream.json` in the same directory.
 
-Where the deployed commit is recorded, which is also how to check a machine by hand:
+Where the deployed commit is recorded, which is also how to check a machine by hand (the
+dry-run prints all three, given a clean checkout at `origin/t4-code`):
 
 | Target      | Recorded in                            | Build checkout                                    |
 | ----------- | -------------------------------------- | ------------------------------------------------- |
 | m4          | `~/.t4/t4-source.json` (`builtCommit`) | `~/.local/share/t4code-build/source-*` worktrees  |
 | omarchy, M1 | `~/.t4/runtime/t4-commit` on the host  | `~/.local/share/t4code-build/cli-src` on the host |
+
+On the M4, `builtCommit` is the installed app, which runs only after T4 restarts; the running
+app reports only the package version (`0.0.45`), not a commit. T4 runs the installed build when
+it started after the build finished:
+
+```sh
+ps -axo lstart,comm | grep '/MacOS/T4 Code$'    # when the running app started
+stat -f %Sm ~/.t4/t4-source.json                # when the last build was installed
+```
 
 ### By hand
 

@@ -47,7 +47,7 @@ upstream ships an equivalent, drop the T4 version during the merge instead of ke
 - **Merge & rebuild from the app.** The sidebar footer pill (`T4UpstreamPill.tsx`, backed by
   `apps/desktop/src/t4/T4UpstreamSync.ts` and `t4UpstreamGit.ts`) checks `upstream/main` at
   startup, at 09:00 and 18:00, and on demand. It merges, builds in a separate worktree, pushes
-  `t4-code`, and relaunches. When the merge conflicts it lists the files and waits for a manual
+  `t4-code`, and relaunches T4 after it quits. When the merge conflicts it lists the files and waits for a manual
   merge; when `origin/t4-code` is ahead of the installed build it offers **Rebuild**.
 - **One deploy command.** `scripts/t4-remote/deploy-all.sh` brings the M4 app and both
   headless servers to the pushed commit, after a test guard that stops a merge which lost T4

@@ -10,13 +10,15 @@
 #      here (twice) but passes on the upstream commit we merged means a merge lost T4
 #      behaviour, and nothing is deployed. Tests that fail on upstream too are listed and ignored.
 #   2. Per target: skips it when it already runs this commit or nothing it ships changed. A
-#      server is also skipped while a turn runs there, because installing restarts it.
+#      server is also skipped while a turn runs there (or its database cannot be read),
+#      because installing restarts it.
 #   3. Builds all targets in parallel. m4: build-t4-local.ts installs the app, which takes effect
 #      the next time T4 starts (the running app is not touched). Servers: build-cli.sh on the
 #      host, then install-service.sh, a version and T4-capability check, and a rollback to the
 #      previous version if the new server does not come up as T4.
 #
 # --dry-run stops after the checks, --force ignores "up to date" and running turns.
+# Exit status: 0 all targets current, 3 only servers skipped for running turns, 1 otherwise.
 # See docs/operations/t4-machines.md#updating-t4.
 set -euo pipefail
 unset ELECTRON_RUN_AS_NODE
@@ -66,10 +68,18 @@ say "Deploying t4-code $(git log --oneline -1 "$TARGET")"
 failed_tests() { # <checkout> <json> <files...>: prints "file :: test" for every failure
   local dir=$1 out=$2
   shift 2
+  rm -f "$out"
   (cd "$dir" && node_modules/.bin/vp test run "$@" --reporter=json --outputFile="$out" >/dev/null 2>&1) || true
   node -e '
     const path = require("path");
-    const report = require(process.argv[1]);
+    let report;
+    try {
+      report = require(process.argv[1]);
+    } catch {
+      // No report (vp missing, dependencies not installed): never let that pass as green.
+      console.log("(no test report from " + process.argv[2] + "; run pnpm install there)");
+      process.exit(0);
+    }
     for (const file of report.testResults)
       for (const test of file.assertionResults)
         if (test.status === "failed")
@@ -128,7 +138,7 @@ fi
 NOT_SHIPPED=(':!docs' ':!apps/mobile' ':!apps/marketing' ':!.agents' ':!*.md' ':!scripts/t4-remote/deploy-all.sh')
 SERVER_NOT_SHIPPED=("${NOT_SHIPPED[@]}" ':!apps/desktop')
 DESKTOP_NOT_SHIPPED=("${NOT_SHIPPED[@]}" ':!scripts/t4-remote')
-DEPLOY=() BUILT=() pids=()
+DEPLOY=() BUILT=() pids=() BUSY=0
 for host in "${HOSTS[@]}"; do
   if [ "$host" = m4 ]; then
     # build-t4-local.ts records the commit it built; building never restarts the running app.
@@ -147,12 +157,19 @@ for host in "${HOSTS[@]}"; do
     echo "$host: nothing it ships changed since ${deployed:0:10}, skipped"
   elif [ "$FORCE" = false ] && [ "$running" != 0 ]; then
     echo "$host: $running turn(s) running, skipped (rerun later, or --force to interrupt them)"
+    BUSY=$((BUSY + 1))
   else
     echo "$host: deploying (was ${deployed:-unknown commit}, running turns: $running)"
     DEPLOY+=("$host")
   fi
 done
-[ ${#DEPLOY[@]} -gt 0 ] || { say "Nothing to deploy."; exit 0; }
+finish() { # <failures>
+  if [ "$1" -gt 0 ]; then say "$1 target(s) not updated."; exit 1; fi
+  if [ "$BUSY" -gt 0 ]; then say "$BUSY server(s) skipped for running turns; rerun later."; exit 3; fi
+  say "Done."
+  exit 0
+}
+[ ${#DEPLOY[@]} -gt 0 ] || { say "Nothing to deploy."; finish 0; }
 [ "$DRY_RUN" = false ] || { say "Dry run: would deploy ${DEPLOY[*]}."; exit 0; }
 
 # --- 3. Build everywhere in parallel, then install one by one -----------------------------
@@ -207,9 +224,13 @@ for host in ${BUILT[@]+"${BUILT[@]}"}; do
     echo "$host: running $version with T4 capabilities"
   else
     FAILURES=$((FAILURES + 1))
+    if [ -z "$previous" ] || [ "$previous" = "$version" ]; then
+      echo "$host: new server did not come up as T4 and there is no previous version; see $WORK/build-$host.log" >&2
+      continue
+    fi
     echo "$host: new server did not come up as T4; rolling back to $previous" >&2
     ssh "$host" "$REMOTE_PATH bash ~/.local/share/t4code-build/scripts/install-service.sh - '$previous' $PORT $previous_commit" >>"$WORK/build-$host.log" 2>&1 ||
       echo "$host: ROLLBACK FAILED, check it by hand; see $WORK/build-$host.log" >&2
   fi
 done
-[ "$FAILURES" -eq 0 ] && say "Done." || { say "$FAILURES target(s) not updated."; exit 1; }
+finish "$FAILURES"

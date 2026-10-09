@@ -35,18 +35,21 @@ omarchy or the M1; the M4 environment stops when its app quits or the Mac sleeps
 ## Which task, which tool
 
 - **Update T4 (upstream T3 changed, or new commits on `t4-code`):** two steps, both on the M4 in
-  `~/usr/projects/t3code`. 1) Merge `upstream/main` into `t4-code` and push: **Merge & rebuild**
-  in the T4 app, or by hand when it conflicts (keep both sides; see t4-differences.md). 2) `scripts/t4-remote/deploy-all.sh --dry-run`, then without `--dry-run`. It updates all three
+  `~/usr/projects/t3code`. 1) Merge `upstream/main` into `t4-code` and push. The user can press
+  **Merge & rebuild** in the T4 app; an agent merges by hand, because that button relaunches T4
+  and ends an agent session running inside it. Resolving conflicts: t4-machines.md, "Updating
+  T4" → "1. Merge upstream". 2) `scripts/t4-remote/deploy-all.sh --dry-run`, then without `--dry-run`. It updates all three
   machines: the M4 app (`m4`), `omarchy` and `mac-m1-pro`. It stops if the merge broke a T4
   test that passes upstream, skips machines that are current or running a turn, and rolls back a
   server that does not come up as T4. Full description: t4-machines.md, "Updating T4".
 - **Check what a machine runs:** m4 `~/.t4/t4-source.json` (`builtCommit`); servers
   `~/.t4/runtime/t4-commit` and `curl -fsS <tailnet URL>/.well-known/t3/environment`
-  (`serverVersion`). `deploy-all.sh --dry-run --skip-tests` prints all three.
+  (`serverVersion`). `deploy-all.sh --dry-run --skip-tests` prints all three (needs a clean
+  checkout at `origin/t4-code`).
 - **Local desktop app, first install:** `node scripts/build-t4-local.ts --launch` (Node 24,
   pnpm, Rust); see release.md.
-- **Pairing a phone or Mac:** `t3 auth pairing create --base-dir ~/.t4 ...` on the target host;
-  see "Connecting clients".
+- **Pairing a phone or Mac:** t4-machines.md, "Connecting clients" (the `t3` binary is not on
+  `PATH`; the section gives its full path on each machine).
 - **Bringing T3 data into T4:** `t4-sync` (merge) or `t4-replace` (fresh snapshot), with the T4
   app or `t4code.service` stopped; new machine: `scripts/t4-remote/migrate-userdata.py`.
 
