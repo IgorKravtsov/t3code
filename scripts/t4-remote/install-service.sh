@@ -68,6 +68,8 @@ UNIT
     label=com.t4tools.t4code.service
     plist="$HOME/Library/LaunchAgents/$label.plist"
     path=$(/usr/libexec/PlistBuddy -c 'Print :EnvironmentVariables:PATH' "$HOME/Library/LaunchAgents/com.t3tools.t3code.service.plist" 2>/dev/null || echo "/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin")
+    # launchd skips shell profiles; the native Claude Code installer puts `claude` in ~/.local/bin.
+    case ":$path:" in *":$HOME/.local/bin:"*) ;; *) path="$HOME/.local/bin:$path" ;; esac
     cat > "$plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
