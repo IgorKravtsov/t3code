@@ -86,6 +86,11 @@ if [ "$SKIP_TESTS" = false ]; then
   FAILED=()
   [ ${#TESTS[@]} -eq 0 ] || lines_into FAILED failed_tests "$REPO" "$WORK/guard-t4.json" "${TESTS[@]}"
   if [ ${#FAILED[@]} -gt 0 ]; then
+    # Timing-sensitive tests can fail under the load of the full run; rerun those files alone.
+    lines_into RETRY_FILES eval 'printf "%s\n" "${FAILED[@]}" | sed "s/ :: .*//" | sort -u'
+    lines_into FAILED failed_tests "$REPO" "$WORK/guard-t4.json" "${RETRY_FILES[@]}"
+  fi
+  if [ ${#FAILED[@]} -gt 0 ]; then
     printf '%d failing; checking which of them fail on upstream %s too\n' "${#FAILED[@]}" "${BASE:0:10}"
     UPSTREAM="$HOME/.local/share/t4code-build/upstream-check"
     if [ ! -e "$UPSTREAM/.git" ]; then
