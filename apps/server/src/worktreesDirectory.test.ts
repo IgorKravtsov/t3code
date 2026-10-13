@@ -9,18 +9,26 @@ it.layer(Path.layer)("worktree directories", (it) => {
   it.effect("resolves relative paths against the project and preserves absolute paths", () =>
     Effect.gen(function* () {
       const path = yield* Path.Path;
-      expect(resolveWorktreesDirectory("../worktrees", "/t3/worktrees", path, "/projects/UI")).toBe(
-        "/projects/worktrees",
-      );
       expect(
-        resolveWorktreesDirectory("/data/worktrees", "/t3/worktrees", path, "/projects/UI"),
+        resolveWorktreesDirectory("../worktrees", "/t3/worktrees", path, "/home", "/projects/UI"),
+      ).toBe("/projects/worktrees");
+      expect(
+        resolveWorktreesDirectory(
+          "/data/worktrees",
+          "/t3/worktrees",
+          path,
+          "/home",
+          "/projects/UI",
+        ),
       ).toBe("/data/worktrees");
-      expect(resolveWorktreesDirectory("", "/t3/worktrees", path, "/projects/UI")).toBe(
+      expect(resolveWorktreesDirectory("", "/t3/worktrees", path, "/home", "/projects/UI")).toBe(
         "/t3/worktrees",
       );
-      expect(resolveWorktreesDirectory("../../", "/t3/worktrees", path, "/projects/UI")).toBeNull();
       expect(
-        resolveWorktreesDirectory("D:\\worktrees", "/t3/worktrees", path, "/projects/UI"),
+        resolveWorktreesDirectory("../../", "/t3/worktrees", path, "/home", "/projects/UI"),
+      ).toBeNull();
+      expect(
+        resolveWorktreesDirectory("D:\\worktrees", "/t3/worktrees", path, "/home", "/projects/UI"),
       ).toBeNull();
     }),
   );
@@ -37,6 +45,7 @@ it.layer(Path.layer)("worktree directories", (it) => {
           },
           "/t3/worktrees",
           path,
+          "/home",
           [{ id, workspaceRoot: "/projects/UI" }],
         ),
       ).toEqual(["/t3/worktrees", "/global/worktrees", "/old/worktrees", "/projects/worktrees"]);

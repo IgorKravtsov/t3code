@@ -8,7 +8,7 @@ import * as NodeCrypto from "node:crypto";
 import * as NodeChildProcess from "node:child_process";
 import * as Effect from "effect/Effect";
 import * as DateTime from "effect/DateTime";
-import { HostProcessPlatform } from "@t3tools/shared/hostProcess";
+import * as HostProcess from "@t3tools/shared/HostProcess";
 import { copyStateDirectory, databaseCounts, exists, prepareIndependentCopy } from "./t4-state.ts";
 import { mergeT4Databases, mergeT4Values } from "./t4-merge.ts";
 import { reencryptT4Credentials } from "./t4-keyring.ts";
@@ -208,7 +208,7 @@ export async function transferT4Local(mode: "merge" | "replace") {
       ).some(Boolean);
       if (hasCredentials) {
         const executable =
-          Effect.runSync(HostProcessPlatform) === "darwin"
+          Effect.runSync(HostProcess.Platform) === "darwin"
             ? "Electron.app/Contents/MacOS/Electron"
             : "electron";
         const candidates = [

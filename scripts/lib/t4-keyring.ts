@@ -2,7 +2,7 @@
 import * as NodeFSP from "node:fs/promises";
 import * as NodePath from "node:path";
 import * as NodeChildProcess from "node:child_process";
-import { HostProcessPlatform } from "@t3tools/shared/hostProcess";
+import * as HostProcess from "@t3tools/shared/HostProcess";
 import * as Effect from "effect/Effect";
 import { exists } from "./t4-state.ts";
 import { mergeT4Values } from "./t4-merge.ts";
@@ -98,7 +98,7 @@ process.stdin.on('end',()=>void run());
   };
   delete helperEnvironment.ELECTRON_RUN_AS_NODE;
   const switches: string[] = [];
-  if (Effect.runSync(HostProcessPlatform) === "linux") {
+  if (Effect.runSync(HostProcess.Platform) === "linux") {
     if (helperEnvironment.WAYLAND_DISPLAY && !helperEnvironment.DISPLAY)
       switches.push("--ozone-platform=wayland");
     const settingsPath = NodePath.join(source, "desktop-settings.json");
@@ -124,7 +124,7 @@ process.stdin.on('end',()=>void run());
       JSON.stringify({ name, productName: name, main: "main.cjs" }),
     );
     await NodeFSP.mkdir(NodePath.join(helper, "profile"), { recursive: true });
-    if (Effect.runSync(HostProcessPlatform) === "darwin") {
+    if (Effect.runSync(HostProcess.Platform) === "darwin") {
       // LaunchServices owns the graphical security session. An SSH-launched process cannot
       // request Keychain interaction. FIFOs carry plaintext in memory, never in regular files.
       const inputPipe = NodePath.join(helper, "input");

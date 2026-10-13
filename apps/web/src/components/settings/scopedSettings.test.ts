@@ -3,6 +3,7 @@ import {
   EnvironmentAuthorizationError,
   EnvironmentId,
   ProjectId,
+  ProviderInstanceId,
   type ServerSettings,
 } from "@t3tools/contracts";
 import { describe, expect, it, vi } from "vite-plus/test";
@@ -160,6 +161,7 @@ describe("scoped settings writes", () => {
             worktreeOnDelete: true,
             worktreeOnMerge: true,
             worktreeUnchanged: false,
+            worktreeKeepWhen: "uncommitted-changes",
           },
         },
       },
@@ -183,12 +185,14 @@ describe("scoped settings writes", () => {
         worktreeOnDelete: false,
         worktreeOnMerge: true,
         worktreeUnchanged: false,
+        worktreeKeepWhen: "uncommitted-changes",
       },
       {
         worktreeAfterDays: null,
         worktreeOnDelete: false,
         worktreeOnMerge: false,
         worktreeUnchanged: false,
+        worktreeKeepWhen: "uncommitted-changes",
       },
     ]);
   });
@@ -317,6 +321,7 @@ describe("scoped settings writes", () => {
                 worktreeOnDelete: false,
                 worktreeOnMerge: true,
                 worktreeUnchanged: false,
+                worktreeKeepWhen: "uncommitted-changes",
               },
             },
           },
@@ -337,6 +342,7 @@ describe("scoped settings writes", () => {
               worktreeOnDelete: true,
               worktreeOnMerge: true,
               worktreeUnchanged: false,
+              worktreeKeepWhen: "uncommitted-changes",
             },
           },
         },
@@ -350,6 +356,7 @@ describe("scoped settings writes", () => {
               worktreeOnDelete: true,
               worktreeOnMerge: false,
               worktreeUnchanged: false,
+              worktreeKeepWhen: "uncommitted-changes",
             },
           },
         },
@@ -659,4 +666,17 @@ describe("partial object patches at project scope", () => {
       },
     });
   });
+});
+
+it("routes legacy model preference keys exclusively to the selected environment", () => {
+  const patch = {
+    favorites: [{ provider: ProviderInstanceId.make("codex"), model: "sol" }],
+    providerModelPreferences: {},
+  };
+  const plan = planScopedSettingsPatch(named, environments, patch);
+  expect(plan.clientPatch).toEqual({});
+  expect(plan.hasClientWrite).toBe(false);
+  expect(plan.serverWrites).toEqual([
+    { environmentId: server.environmentId, label: server.label, patch },
+  ]);
 });

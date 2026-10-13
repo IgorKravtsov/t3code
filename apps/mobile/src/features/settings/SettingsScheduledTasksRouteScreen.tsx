@@ -1,6 +1,10 @@
 import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
 import { useAtomValue } from "@effect/atom-react";
-import { AuthOrchestrationOperateScope, DEFAULT_SERVER_SETTINGS } from "@t3tools/contracts";
+import {
+  AuthOrchestrationOperateScope,
+  DEFAULT_SERVER_SETTINGS,
+  resolveProjectProviderInstanceEnabled,
+} from "@t3tools/contracts";
 import { readEnvironmentScope } from "../../state/session";
 import type {
   EnvironmentId,
@@ -587,7 +591,10 @@ function TaskForm({
     config?.settings ?? DEFAULT_SERVER_SETTINGS,
     draft.projectId,
   ).settings.defaultWorktreeBaseBranch;
-  const modelOptions = useMemo(() => buildModelOptions(config, null), [config]);
+  const modelOptions = useMemo(
+    () => buildModelOptions(config, null, undefined, draft.projectId),
+    [config, draft.projectId],
+  );
   const canOperate = useAtomValue(
     serverEnvironment.upsertScheduledTask.permissionAtom(environmentId),
   );
@@ -762,14 +769,24 @@ function TaskForm({
           }))}
           onSelect={(id) => {
             const project = projects.find((item) => item.id === id);
-            if (project)
-              setDraft({
-                ...draft,
-                projectId: project.id,
-                modelSelection: draft.modelSelectionIsExplicit
-                  ? draft.modelSelection
-                  : scheduledTaskDefaultModel(config, project),
-              });
+            if (!project) return;
+            const keepsExplicitModel =
+              draft.modelSelectionIsExplicit &&
+              (draft.modelSelection === null ||
+                !config?.settings ||
+                resolveProjectProviderInstanceEnabled(
+                  config.settings,
+                  project.id,
+                  draft.modelSelection.instanceId,
+                ));
+            setDraft({
+              ...draft,
+              projectId: project.id,
+              modelSelection: keepsExplicitModel
+                ? draft.modelSelection
+                : scheduledTaskDefaultModel(config, project),
+              modelSelectionIsExplicit: keepsExplicitModel,
+            });
           }}
         />
         <PickerRow

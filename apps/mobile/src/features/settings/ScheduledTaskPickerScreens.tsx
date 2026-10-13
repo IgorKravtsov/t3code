@@ -27,7 +27,11 @@ export function ScheduledTaskModelPickerRouteScreen() {
   const { editor, setEditor } = useScheduledTaskEditor();
   const config = useEnvironmentServerConfig(editor?.environmentId ?? null);
   const selectedModel = editor?.draft.modelSelection ?? null;
-  const models = useMemo(() => buildModelOptions(config, selectedModel), [config, selectedModel]);
+  const projectId = editor?.draft.projectId ?? null;
+  const models = useMemo(
+    () => buildModelOptions(config, selectedModel, undefined, projectId),
+    [config, selectedModel, projectId],
+  );
   const providerGroups = useMemo(() => groupByProvider(models), [models]);
   const selectedOption = models.find(
     (option) =>
@@ -48,6 +52,7 @@ export function ScheduledTaskModelPickerRouteScreen() {
   return (
     <ThreadSettingsPickerScreen
       environmentId={editor.environmentId}
+      projectId={projectId}
       providerGroups={providerGroups}
       selectedModel={selectedModel}
       onSelectModel={(option) =>
