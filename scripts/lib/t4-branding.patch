@@ -177,8 +177,7 @@ index d6632355e3..a546db36d5 100644
      electronLanguages: [...DESKTOP_ELECTRON_LANGUAGES],
      files: [
        ...DESKTOP_FILE_EXCLUSIONS,
-@@ -2737,8 +2735,8 @@
-       },
+@@ -2851,7 +2849,7 @@
        protocols: [
          {
 -          name: "T3 Code",
@@ -186,8 +185,8 @@ index d6632355e3..a546db36d5 100644
 +          name: "T4 Code",
 +          schemes: ["t4code", "t4code-dev"],
          },
-       ],
-       ...(signed ? { sign: path.join(repoRoot, "scripts/sign-macos.ts") } : {}),
+         // Lets people choose T3 Code as their default web browser, which opens
+         // each link in a new thread's browser panel.
 @@ -2780,7 +2778,7 @@
        // resources/package-type into the .deb only, so electron-updater updates
        // each install in its own format.
