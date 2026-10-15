@@ -65,14 +65,25 @@ side's version.
 
 ## 4. Verify
 
-Agent sessions in T3/T4 export `ELECTRON_RUN_AS_NODE=1`; run tools with
-`env -u ELECTRON_RUN_AS_NODE`. If the merge changed dependencies, run `vp i` first.
+Agent sessions inside a T3/T4 server inherit its environment, which breaks tools and tests
+(`ELECTRON_RUN_AS_NODE=1`; `T3_SERVICE_LAUNCHER_CONTEXT` and friends make server tests fail with
+"The service launcher started a different t3 version"). Clear it first in each shell:
 
-- Typecheck each package you touched: `cd <package> && env -u ELECTRON_RUN_AS_NODE vp run typecheck`
-  (or `../../node_modules/.bin/tsc-rs --noEmit`).
-- Run the tests of the conflicted files and of the T4 tests next to them:
-  `env -u ELECTRON_RUN_AS_NODE vp test run <files>`. A failure that also fails on `upstream/main`
-  is not caused by the merge; say so instead of fixing it.
+```sh
+unset ELECTRON_RUN_AS_NODE T3_BOOT_SERVICE_UNIT T3_SERVICE_LAUNCHER_CONTEXT \
+  T3CODE_RELEASE_BASE_URL T3CODE_HOME T3CODE_PORT
+```
+
+`vp` may not be on `PATH`; use `node_modules/.bin/vp` from the repo root. If the merge changed
+dependencies (`git diff --name-only HEAD -- pnpm-lock.yaml`), install first with `vp i`.
+
+- Typecheck each package you touched: `cd <package> && ../../node_modules/.bin/vp run typecheck`.
+- Run the tests of the conflicted files and the T4 tests next to them:
+  `../../node_modules/.bin/vp test run <files>`. Also expect breakage the conflict markers did
+  not show: a T4 test calling an API upstream changed, or a T4 hook upstream's new logic now
+  bypasses. Fix those in the merge commit.
+- A test that fails under load but passes alone, or also fails on `upstream/main`, is not caused
+  by the merge; say so instead of fixing it.
 - No repo-wide checks; `deploy-all.sh` runs the full T4 guard later.
 
 ## 5. Commit and hand off
