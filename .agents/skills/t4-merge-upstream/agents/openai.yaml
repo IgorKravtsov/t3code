@@ -1,0 +1,4 @@
+interface:
+  display_name: "T4 Merge Upstream"
+  short_description: "Merge upstream T3 into t4-code and resolve conflicts"
+  default_prompt: "Use $t4-merge-upstream to merge upstream/main into t4-code and resolve the conflicts."

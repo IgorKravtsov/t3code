@@ -37,8 +37,7 @@ omarchy or the M1; the M4 environment stops when its app quits or the Mac sleeps
 - **Update T4 (upstream T3 changed, or new commits on `t4-code`):** two steps, both on the M4 in
   `~/usr/projects/t3code`. 1) Merge `upstream/main` into `t4-code` and push. The user can press
   **Merge & rebuild** in the T4 app; an agent merges by hand, because that button relaunches T4
-  and ends an agent session running inside it. Resolving conflicts: t4-machines.md, "Updating
-  T4" → "1. Merge upstream". 2) `scripts/t4-remote/deploy-all.sh --dry-run`, then without `--dry-run`. It updates all three
+  and ends an agent session running inside it. Resolving conflicts: the t4-merge-upstream skill. 2) `scripts/t4-remote/deploy-all.sh --dry-run`, then without `--dry-run`. It updates all three
   machines: the M4 app (`m4`), `omarchy` and `mac-m1-pro`. It stops if the merge broke a T4
   test that passes upstream, skips machines that are current or running a turn, and rolls back a
   server that does not come up as T4. Full description: t4-machines.md, "Updating T4".
