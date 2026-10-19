@@ -19,7 +19,7 @@ import {
 
 export function EnvironmentNameDialog(props: {
   readonly environmentId: EnvironmentId;
-  readonly serverConfig: ServerConfig | null;
+  readonly serverConfig: Pick<ServerConfig, "environment" | "settings"> | null;
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
 }) {

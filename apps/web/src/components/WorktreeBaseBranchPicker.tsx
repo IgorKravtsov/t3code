@@ -1,6 +1,6 @@
 import type { EnvironmentId } from "@t3tools/contracts";
 import { ChevronDownIcon, GitBranchIcon } from "lucide-react";
-import { useDeferredValue, useMemo, useState } from "react";
+import { useDeferredValue, useState } from "react";
 
 import { usePaginatedBranches } from "../state/queries";
 import { useEnvironmentQuery } from "../state/query";
@@ -14,7 +14,6 @@ import { ComboboxItem, ComboboxTrigger } from "./ui/combobox";
 const CUSTOM_REF_ITEM_PREFIX = "__custom_ref__:";
 
 /**
- * Select a future worktree's base without changing the project's current checkout.
  * Without the start-from-origin switch the picker is for a stored default: it lists
  * origin/<name> refs beside local ones and accepts a typed ref that is not listed.
  */
@@ -73,10 +72,7 @@ export function WorktreeBaseBranchPicker({
         resolvedActiveBranchIsRemote: selectedRef ? selectedRef.isRemote === true : null,
         startFromOrigin: startFromOrigin ?? false,
       });
-  const branchByName = useMemo(
-    () => new Map(branches.refs.map((branch) => [branch.name, branch])),
-    [branches.refs],
-  );
+  const branchByName = new Map(branches.refs.map((branch) => [branch.name, branch]));
   const customRef =
     freeform && deferredQuery && !branchByName.has(deferredQuery) ? deferredQuery : null;
   const items = [

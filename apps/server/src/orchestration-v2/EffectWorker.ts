@@ -39,10 +39,6 @@ export class OrchestrationEffectExecutionError extends Schema.TaggedError<Orches
 ) {}
 
 /**
- * Pure interrupt races with hard process teardown, a dead session, or a turn
- * that already ended produce "not active" protocol errors. Retrying those only
- * delays recovery and blocks the thread's later effects.
- *
  * Do not apply this to `provider-turn.restart`: that compound effect also runs
  * detach and start. Swallowing a start failure that happens to mention
  * "is not active" would drop the outbox item without ever starting the
@@ -66,10 +62,6 @@ export function isNonRetryableProviderTurnControlFailure(
 }
 
 export interface OrchestrationEffectExecutorV2Shape {
-  /**
-   * Runs one claimed effect. `willRetry` is true when the worker will retry a
-   * failure, so a step can fail and try again instead of settling the run.
-   */
   readonly execute: (
     effect: EffectOutbox.OrchestrationEffectV2,
     options?: { readonly willRetry: boolean },
@@ -116,7 +108,6 @@ export const layerExecutor: Layer.Layer<
             return continueRestartedRun({ threadId: effect.threadId, sourceRunId }).pipe(
               Effect.provideService(ThreadManagementService.ThreadManagementService, threads),
               Effect.provideService(ServerSettings.ServerSettingsService, settings),
-              // A continuation that will never run still owes a delegated parent a result.
               Effect.tapError(() =>
                 willRetry
                   ? Effect.void
@@ -200,8 +191,6 @@ export const layerExecutor: Layer.Layer<
                     ? Effect.void
                     : Effect.fail(cause),
                 ),
-                // A targeted Stop repairs only an outcome the provider actually observed.
-                // A full-turn Stop retains its existing process-teardown repair.
                 Effect.andThen((outcome) =>
                   request.subagent !== undefined && outcome === undefined
                     ? Effect.void
@@ -290,9 +279,6 @@ export const layerExecutor: Layer.Layer<
                         text: message.text,
                         ...(message.context ? { context: message.context } : {}),
                         attachments: message.attachments,
-                        // A user's follow-up starts on the thread's saved selection,
-                        // which already holds the steer's choice. A delegated
-                        // completion stays pinned to the run it reports to.
                         ...(message.delegatedCompletion === undefined
                           ? {}
                           : { modelSelection: run.modelSelection }),
@@ -429,9 +415,6 @@ export const layerExecutor: Layer.Layer<
                   : { restoreFiles: effect.request.restoreFiles }),
               })
               .pipe(
-                // The last failed attempt tells waiting clients it failed,
-                // instead of leaving them to time out. Clients get a fixed
-                // message; the worker logs the full cause for each attempt.
                 Effect.tapCause((cause) =>
                   willRetry || Cause.hasInterruptsOnly(cause)
                     ? Effect.void
@@ -772,8 +755,6 @@ export const layerWithOptions = (
             nonRetryable,
             error,
           });
-          // Prefer succeed for terminal interrupt races so the outbox does not
-          // keep a failed interrupt around; fail only when we must not retry.
           const updated = nonRetryable
             ? yield* outbox
                 .succeed({ effectId: effect.id, workerId })

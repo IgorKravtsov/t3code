@@ -2,7 +2,6 @@ import type { VcsRef } from "@t3tools/contracts";
 import { GitBranchPlusIcon } from "lucide-react";
 import { LegendList, type LegendListRef } from "@legendapp/list/react";
 import {
-  useCallback,
   useEffect,
   useId,
   useLayoutEffect,
@@ -30,7 +29,6 @@ import {
 } from "./ui/combobox";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 
-/** Shared composer picker UI. The caller owns selection and any checkout mutations. */
 export function BranchPicker({
   items,
   filteredItems,
@@ -78,24 +76,21 @@ export function BranchPicker({
   const newBranchInputId = useId();
   const branchListScrollElementRef = useRef<HTMLElement | null>(null);
   const previousBranchListScrollTopRef = useRef<number | null>(null);
-  const handleOpenChange = useCallback(
-    (nextOpen: boolean) => {
-      previousBranchListScrollTopRef.current = null;
-      if (!nextOpen) highlightedValueRef.current = null;
-      onOpenChange(nextOpen);
-    },
-    [onOpenChange],
-  );
+  const handleOpenChange = (nextOpen: boolean) => {
+    previousBranchListScrollTopRef.current = null;
+    if (!nextOpen) highlightedValueRef.current = null;
+    onOpenChange(nextOpen);
+  };
   const [showTopBranchScrollFade, setShowTopBranchScrollFade] = useState(false);
   const [showBottomBranchScrollFade, setShowBottomBranchScrollFade] = useState(false);
-  const fetchNextBranchPage = useCallback(() => {
+  const fetchNextBranchPage = () => {
     if (!hasNextPage || isFetchingNextPage) {
       return;
     }
 
     onLoadNext();
-  }, [onLoadNext, hasNextPage, isFetchingNextPage]);
-  const maybeFetchNextBranchPage = useCallback(() => {
+  };
+  const maybeFetchNextBranchPage = () => {
     const scrollElement = branchListScrollElementRef.current;
     if (!scrollElement) {
       return;
@@ -118,10 +113,10 @@ export function BranchPicker({
     }
 
     fetchNextBranchPage();
-  }, [fetchNextBranchPage, hasNextPage, open, isFetchingNextPage]);
+  };
 
   const branchListRef = useRef<LegendListRef | null>(null);
-  const updateBranchListScrollFades = useCallback(() => {
+  const updateBranchListScrollFades = () => {
     const scrollElement = branchListRef.current?.getScrollableNode?.();
     if (!(scrollElement instanceof HTMLElement)) {
       return;
@@ -130,7 +125,7 @@ export function BranchPicker({
     const maxScrollOffset = Math.max(0, scrollElement.scrollHeight - scrollElement.clientHeight);
     setShowTopBranchScrollFade(scrollElement.scrollTop > 1);
     setShowBottomBranchScrollFade(maxScrollOffset - scrollElement.scrollTop > 1);
-  }, []);
+  };
 
   useLayoutEffect(() => {
     if (!open) {
@@ -201,8 +196,8 @@ export function BranchPicker({
         />
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <ComboboxEmpty>No refs found.</ComboboxEmpty>
-          <div className="relative min-h-0 w-full max-h-56 flex-1 overflow-hidden">
-            <ComboboxListVirtualized className="size-full min-w-0">
+          <div className="relative flex min-h-0 w-full max-h-56 flex-1 flex-col overflow-hidden">
+            <ComboboxListVirtualized className="flex size-full min-h-0 min-w-0 flex-col">
               <LegendList<string>
                 ref={branchListRef}
                 data={filteredItems}
@@ -221,7 +216,7 @@ export function BranchPicker({
                   maybeFetchNextBranchPage();
                 }}
                 className={cn(
-                  "max-h-56 scrollbar-gutter-stable overflow-x-hidden overscroll-y-contain ps-1 pe-0 pt-2 pb-1",
+                  "min-h-0 max-h-56 scrollbar-gutter-stable overflow-x-hidden overscroll-y-contain ps-1 pe-0 py-2",
                   getVirtualizedScrollFadeClassName({
                     top: showTopBranchScrollFade,
                     bottom: showBottomBranchScrollFade,
