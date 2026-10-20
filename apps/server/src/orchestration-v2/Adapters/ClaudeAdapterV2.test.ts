@@ -10690,7 +10690,12 @@ describe("ClaudeAdapterV2 background wake turns", () => {
         yield* Deferred.await(stopRequested);
 
         yield* TestClock.adjust("2 minutes");
-        assert.lengthOf(harness.terminalEvents(), 1);
+        // T4 gives up on an unacknowledged interrupt after CLAUDE_INTERRUPT_ACK_TIMEOUT, so
+        // Stop settles the run as interrupted long before the wake watchdog could complete it.
+        assert.deepEqual(
+          harness.terminalEvents().map((event) => event.status),
+          ["completed", "interrupted"],
+        );
 
         yield* Deferred.succeed(releaseStop, undefined);
         yield* Fiber.join(stop);
