@@ -42,6 +42,12 @@ SCRIPTS="$REPO/scripts/t4-remote"
 WORK="$HOME/.local/share/t4code-build/deploy"
 mkdir -p "$WORK"
 export PATH="$(mise where node@24)/bin:$PATH"
+# The pnpm the repo pins, privately: a global pnpm cannot always switch to it (pnpm 12 ships a
+# native binary its older versions do not install).
+PNPM_VERSION=$(node -p 'require(process.argv[1]).packageManager.split("@")[1]' "$REPO/package.json")
+PNPM_PREFIX="$HOME/.local/share/t4code-build/pnpm-$PNPM_VERSION"
+[ -x "$PNPM_PREFIX/bin/pnpm" ] || npm i -g --allow-scripts=pnpm --prefix "$PNPM_PREFIX" "pnpm@$PNPM_VERSION" >/dev/null
+export PATH="$PNPM_PREFIX/bin:$PATH"
 # Tests compare realpaths, and macOS hands out /var/folders, a symlink into /private.
 export TMPDIR="$(cd "${TMPDIR:-/tmp}" && pwd -P)/"
 # Remote commands run in a non-login shell; Homebrew, mise and rustup live outside its PATH.

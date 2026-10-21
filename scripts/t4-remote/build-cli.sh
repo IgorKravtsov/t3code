@@ -46,10 +46,11 @@ server_version=$(node -p 'require("./apps/server/package.json").version')
 VERSION="${1:-${server_version%%-*}-preview.$(date +%Y%m%d).$(date +%s)}"
 
 export PATH="$WT/node_modules/.bin:$PATH"
-if [ "$(pnpm --version 2>/dev/null)" != 11.10.0 ]; then
-  npm i -g --prefix "$HOME/.local/share/t4code-build/pnpm" pnpm@11.10.0 >/dev/null
-  export PATH="$HOME/.local/share/t4code-build/pnpm/bin:$PATH"
-fi
+# The pnpm this commit pins, installed privately so the machine's own pnpm never matters.
+pnpm_version=$(node -p 'require("./package.json").packageManager.split("@")[1]')
+pnpm_prefix="$HOME/.local/share/t4code-build/pnpm-$pnpm_version"
+[ -x "$pnpm_prefix/bin/pnpm" ] || npm i -g --allow-scripts=pnpm --prefix "$pnpm_prefix" "pnpm@$pnpm_version" >/dev/null
+export PATH="$pnpm_prefix/bin:$PATH"
 
 git apply scripts/lib/t4-branding.patch
 pnpm install --frozen-lockfile
