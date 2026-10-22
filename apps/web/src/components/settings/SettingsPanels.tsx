@@ -417,7 +417,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       ? ["Time format"]
       : []),
     ...(settings.notificationMode !== DEFAULT_UNIFIED_SETTINGS.notificationMode
-      ? ["Thread notifications"]
+      ? ["System notifications"]
       : []),
     ...(settings.inAppNotificationsEnabled !== DEFAULT_UNIFIED_SETTINGS.inAppNotificationsEnabled
       ? ["In-app notifications"]

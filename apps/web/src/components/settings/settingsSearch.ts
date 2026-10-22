@@ -362,9 +362,15 @@ export const SETTINGS_SEARCH_ITEMS = [
   },
   {
     id: "thread-notifications",
-    title: "Thread notifications",
+    title: "System notifications",
     to: "/settings/general",
-    searchTerms: ["notification sound alert completion input approval desktop"],
+    searchTerms: ["notification alert completion input approval desktop os macos thread"],
+  },
+  {
+    id: "notification-sound",
+    title: "Notification sound",
+    to: "/settings/general",
+    searchTerms: ["notification sound audio alert completion input approval"],
   },
   {
     id: "in-app-notifications",

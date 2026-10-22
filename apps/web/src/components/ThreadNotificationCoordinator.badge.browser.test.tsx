@@ -16,11 +16,13 @@ const state = vi.hoisted(() => ({
   sound: vi.fn(),
   badge: vi.fn(),
   environmentIds: ["one", "two"],
+  params: {} as Record<string, string>,
+  preview: vi.fn(),
 }));
 vi.mock(import("@tanstack/react-router"), async (original) => ({
   ...(await original()),
   useNavigate: (() => state.navigate) as never,
-  useParams: (() => ({})) as never,
+  useParams: (() => state.params) as never,
 }));
 vi.mock(import("./ui/toast"), async (original) => {
   const actual = await original();
@@ -52,6 +54,11 @@ vi.mock(import("../threadNotifications"), async (original) => ({
   playNotificationSound: state.sound,
   unlockNotificationAudio: vi.fn(),
   setNotificationBadge: state.badge,
+}));
+
+vi.mock(import("../t4/threadNotificationPreview"), async (original) => ({
+  ...(await original()),
+  loadThreadNotificationPreview: state.preview,
 }));
 
 import { ThreadNotificationCoordinator } from "./ThreadNotificationCoordinator";
@@ -165,6 +172,8 @@ function setup() {
   state.mode = "notifications";
   state.inApp = false;
   state.environmentIds = ["one", "two"];
+  state.params = {};
+  state.preview.mockResolvedValue(null);
   state.shells.set("one", shell());
   state.shells.set("two", shell());
   focused = false;
@@ -202,7 +211,7 @@ it.each(["hasPendingApprovals", "hasPendingUserInput"] as const)(
     await app.render();
     state.shells.set("one", shell({ [flag]: true }));
     await app.render();
-    expect(state.badge).toHaveBeenLastCalledWith(1);
+    await vi.waitFor(() => expect(state.badge).toHaveBeenLastCalledWith(1));
     const notification = TestNotification.sent[0]!;
     notification.dispatchEvent(new Event("click"));
     expect(state.navigate).toHaveBeenCalledWith({
@@ -215,3 +224,39 @@ it.each(["hasPendingApprovals", "hasPendingUserInput"] as const)(
     expect(notification.close).toHaveBeenCalled();
   },
 );
+
+it("sends a system notification beside the in-app toast, naming the thread and its last reply", async () => {
+  await using app = setup();
+  state.inApp = true;
+  focused = true;
+  state.preview.mockResolvedValue("Fixed the login bug.");
+  await app.render();
+  state.shells.set(
+    "one",
+    shell({
+      latestTurn: { turnId: "turn", state: "completed", completedAt: "2026-09-13T07:01:00Z" },
+    }),
+  );
+  await app.render();
+  expect(state.toast).toHaveBeenCalledOnce();
+  await vi.waitFor(() => expect(TestNotification.sent).toHaveLength(1));
+  const notification = TestNotification.sent[0]!;
+  expect(notification.title).toBe("Test thread");
+  expect(notification.options.body).toBe("Thread completed: Fixed the login bug.");
+  expect(state.preview).toHaveBeenCalledWith(EnvironmentId.make("one"), "thread");
+  expect(state.badge).not.toHaveBeenCalledWith(1);
+});
+
+it("stays quiet for the thread already on screen", async () => {
+  await using app = setup();
+  state.inApp = true;
+  focused = true;
+  state.params = { environmentId: "one", threadId: "thread" };
+  state.environmentIds = ["one"];
+  await app.render();
+  state.shells.set("one", shell({ hasPendingUserInput: true }));
+  await app.render();
+  expect(state.preview).not.toHaveBeenCalled();
+  expect(state.toast).not.toHaveBeenCalled();
+  expect(TestNotification.sent).toHaveLength(0);
+});

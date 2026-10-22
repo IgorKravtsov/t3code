@@ -26,6 +26,10 @@ import {
   threadNotificationTag,
   unlockNotificationAudio,
 } from "../threadNotifications";
+import {
+  loadThreadNotificationPreview,
+  notificationPreviewText,
+} from "../t4/threadNotificationPreview";
 import { resolveSidebarThreadStatus } from "./Sidebar.logic";
 import { toastManager } from "./ui/toast";
 
@@ -175,12 +179,9 @@ function EnvironmentNotifications({
           hasNotificationSound(getClientSettings().notificationMode),
         );
       }
-      if (
-        inAppNotificationsEnabled &&
-        document.visibilityState === "visible" &&
-        document.hasFocus() &&
-        (activeEnvironmentId !== environmentId || activeThreadId !== thread.id)
-      ) {
+      const focused = document.visibilityState === "visible" && document.hasFocus();
+      const viewing = activeEnvironmentId === environmentId && activeThreadId === thread.id;
+      if (inAppNotificationsEnabled && focused && !viewing) {
         const toastId = toastManager.add({
           type: kind === "completion" ? "success" : status === "failed" ? "error" : "warning",
           title,
@@ -209,34 +210,49 @@ function EnvironmentNotifications({
             },
           },
         });
-        continue;
       }
+      // T4: the system notification also accompanies the in-app toast, and names the thread
+      // with a preview of the agent's last message.
       if (
         !hasDesktopNotifications(mode) ||
-        (document.visibilityState === "visible" && document.hasFocus()) ||
+        (focused && viewing) ||
         typeof Notification === "undefined" ||
         Notification.permission !== "granted"
       )
         continue;
-      try {
-        const notification = new Notification(title, {
-          body: thread.title,
-          tag: threadNotificationTag(environmentId, thread.id),
-          silent: true,
-        });
-        onNotification(environmentId, notification);
-        notification.addEventListener("click", () => {
-          notification.close();
-          window.focus();
-          void window.desktopBridge?.revealWindow?.().catch(() => undefined);
-          void navigate({
-            to: "/$environmentId/$threadId",
-            params: { environmentId, threadId: thread.id },
+      const threadId = thread.id;
+      const threadTitle = thread.title;
+      const failure = status === "failed" ? (rawThread.lastError ?? null) : null;
+      void (
+        failure === null
+          ? loadThreadNotificationPreview(environmentId, threadId)
+          : Promise.resolve(notificationPreviewText(failure))
+      ).then((preview) => {
+        if (!hasDesktopNotifications(getClientSettings().notificationMode)) return;
+        try {
+          const notification = new Notification(threadTitle, {
+            body: preview ? `${title}: ${preview}` : title,
+            tag: threadNotificationTag(environmentId, threadId),
+            silent: true,
           });
-        });
-      } catch {
-        // Some browsers expose Notification but reject desktop presentation.
-      }
+          // A badge only clears on the next window focus, so a banner shown over the focused
+          // app does not raise it.
+          if (!(document.visibilityState === "visible" && document.hasFocus())) {
+            onNotification(environmentId, notification);
+          }
+          notification.addEventListener("click", () => {
+            notification.close();
+            window.focus();
+            void window.desktopBridge?.revealWindow?.().catch(() => undefined);
+            void navigate({
+              to: "/$environmentId/$threadId",
+              params: { environmentId, threadId },
+            });
+          });
+        } catch {
+          // Some browsers expose Notification but reject desktop presentation.
+        }
+      });
     }
     previous.current = next;
   }, [
