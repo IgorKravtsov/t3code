@@ -26,6 +26,12 @@ upstream ships an equivalent, drop the T4 version during the merge instead of ke
   instead of replacing the fork with a stock T3 release.
 - **Isolated launchers.** Local launchers drop the inherited T3 service environment, and the Mac
   app starts in the graphical security session so it can reach the Keychain.
+- **Stable local signature.** Electron ships linker-signed as `Electron`, and macOS rejects
+  notifications an app posts under a bundle id its signature does not carry. The Mac build is
+  therefore signed with a self-signed certificate kept in `~/.t4/signing` (its own keychain, not
+  the login keychain), so every build has the same identity and Keychain and notification
+  permissions survive updates (`scripts/lib/t4-codesign.ts`). Deleting that directory makes the
+  next build a new identity, which asks for those permissions again.
 
 ### Data brought over from T3
 

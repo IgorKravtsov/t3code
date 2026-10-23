@@ -11,6 +11,7 @@ import * as NodeFSP from "node:fs/promises";
 import * as NodeChildProcess from "node:child_process";
 import { copyStateDirectory, exists, migrateT4State } from "./lib/t4-state.ts";
 import { reencryptT4Credentials } from "./lib/t4-keyring.ts";
+import { signT4MacApp } from "./lib/t4-codesign.ts";
 
 const repository = NodeURL.fileURLToPath(new URL("..", import.meta.url));
 const home = NodeOS.homedir();
@@ -195,6 +196,7 @@ if (!args.has("--install-prepared") || !(await exists(staged))) {
   if (!(await exists(built))) throw new Error(`Missing built application: ${built}`);
   await NodeFSP.rm(staged, { recursive: true, force: true });
   await NodeFSP.cp(built, staged, { recursive: true, verbatimSymlinks: true });
+  if (platform === "mac") await signT4MacApp(staged, NodePath.join(t4Home, "signing"));
 }
 // Daily updates would otherwise accumulate full application copies; keep only the last one.
 for (const entry of await NodeFSP.readdir(NodePath.dirname(install)))
