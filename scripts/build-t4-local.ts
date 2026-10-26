@@ -310,6 +310,10 @@ for (const entry of gitOutput(["worktree", "list", "--porcelain"]).split("\n")) 
       Effect.runSync(Effect.logWarning(`Could not remove old source ${path}: ${error}`)),
     );
 }
+// The app now lives in its install directory; the packaged output and the Electron downloads
+// left in the temporary directory are several hundred MB per build.
+await NodeFSP.rm(output, { recursive: true, force: true });
+await NodeFSP.rm(temporary, { recursive: true, force: true });
 Effect.runSync(
   Effect.log(`Installed ${NodePath.basename(install)}. Run ${launcher}. Source build: ${worktree}`),
 );

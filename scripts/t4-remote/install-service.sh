@@ -24,6 +24,12 @@ if [ ! -f "$DEST/.install-complete" ]; then
   printf '%s' "$VERSION" > "$DEST/.install-complete"
 fi
 "$DEST/t3" --version
+# Every build has a unique version; keep only this one and the one it replaces (the rollback).
+previous=$(sed -n 's/.*"activeVersion": *"\([^"]*\)".*/\1/p' "$T4/runtime/service-state.json" 2>/dev/null || true)
+for dir in "$VERSIONS"/*/; do
+  name=$(basename "$dir")
+  [ "$name" = "$VERSION" ] || [ "$name" = "$previous" ] || rm -rf "${VERSIONS:?}/$name"
+done
 printf '{\n  "protocol": 3,\n  "activeVersion": "%s"\n}\n' "$VERSION" > "$T4/runtime/service-state.json"
 if [ -n "$COMMIT" ]; then printf '%s\n' "$COMMIT" > "$T4/runtime/t4-commit"; else rm -f "$T4/runtime/t4-commit"; fi
 

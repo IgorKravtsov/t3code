@@ -111,13 +111,11 @@ if [ "$SKIP_TESTS" = false ]; then
   fi
   if [ ${#FAILED[@]} -gt 0 ]; then
     printf '%d failing; checking which of them fail on upstream %s too\n' "${#FAILED[@]}" "${BASE:0:10}"
+    # A full checkout with dependencies is ~9 GB; it is rebuilt from the pnpm store on demand.
     UPSTREAM="$HOME/.local/share/t4code-build/upstream-check"
-    if [ ! -e "$UPSTREAM/.git" ]; then
-      git worktree add -q --detach "$UPSTREAM" "$BASE"
-    else
-      git -C "$UPSTREAM" checkout -q --detach -f "$BASE"
-      git -C "$UPSTREAM" clean -fdq -e node_modules
-    fi
+    git worktree remove --force "$UPSTREAM" 2>/dev/null || true
+    git worktree add -q --detach "$UPSTREAM" "$BASE"
+    trap 'git -C "$REPO" worktree remove --force "$UPSTREAM" 2>/dev/null || true' EXIT
     (cd "$UPSTREAM" && pnpm install --frozen-lockfile --prefer-offline >"$WORK/upstream-install.log" 2>&1)
     failed_files() {
       printf '%s\n' "${FAILED[@]}" | sed 's/ :: .*//' | sort -u |
@@ -228,6 +226,7 @@ for host in ${BUILT[@]+"${BUILT[@]}"}; do
     grep -q '"environmentName":true' <<<"$descriptor" &&
     grep -q '"projectWorktreeDefaults":true' <<<"$descriptor"; then
     echo "$host: running $version with T4 capabilities"
+    ssh "$host" "rm -rf '$(dirname "$archive")'"
   else
     FAILURES=$((FAILURES + 1))
     if [ -z "$previous" ] || [ "$previous" = "$version" ]; then

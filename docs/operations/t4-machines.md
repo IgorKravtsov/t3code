@@ -160,7 +160,7 @@ done by hand. To resolve a conflict:
 3. Drop the T4 side only when upstream now ships the same feature; then remove it from
    t4-differences.md in the same commit.
 4. Typecheck the packages you touched (for example `cd apps/web && ../../node_modules/.bin/tsc
---noEmit`), commit the merge, and push. `deploy-all.sh` then runs the T4 tests.
+   --noEmit`), commit the merge, and push. `deploy-all.sh` then runs the T4 tests.
 
 Where conflicts usually land: t4-differences.md, "Keeping merges clean".
 
@@ -183,7 +183,7 @@ What it does, in order:
 1. **Guard.** It runs every `*.test.ts` file the fork changes relative to upstream (about 30
    files, about a minute). The files with failures run again, without the rest of the suite,
    because some tests fail only under load. A missing test report counts as a failure. A test that still fails is run on the upstream commit that was merged, in a
-   cached checkout at `~/.local/share/t4code-build/upstream-check` (its `pnpm install` log:
+   temporary checkout at `~/.local/share/t4code-build/upstream-check`, removed afterwards (its `pnpm install` log:
    `upstream-install.log` in the deploy log directory). Tests that fail there too
    are listed as "fails on upstream too, ignored". Any other failure is a **T4 regression**:
    the script stops and deploys nothing. Fix the regression on `t4-code`, push, and run again.
@@ -246,7 +246,8 @@ git, rustup and mise; the build installs Node, pnpm 11.10 and Rust 1.95 when mis
 changing the host's defaults. Temporary files go to `~/.cache/t4-build-tmp`, because omarchy's
 `/tmp` is a small tmpfs. The M4 app alone: `node scripts/build-t4-local.ts`.
 
-To roll a server back, reinstall a version that is still under `~/.t4/runtime/versions`; no
+Each install keeps only the new version and the one it replaced under `~/.t4/runtime/versions`.
+To roll a server back, reinstall the version that is still there; no
 archive is needed for an installed version: `bash install-service.sh - <old-version> 3774`.
 
 ## Data
