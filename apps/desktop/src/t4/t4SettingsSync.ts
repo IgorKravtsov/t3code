@@ -9,7 +9,7 @@ const object = (value: unknown): value is Record<string, unknown> =>
 
 /** Three-way merge: a value edited in T4 wins; untouched values receive updates from T3.
  * Mirrors mergeT4Values in scripts/lib/t4-merge.ts, which offline transfers use. */
-export function mergeT4Values(source: unknown, target: unknown, baseline: unknown): unknown {
+function mergeT4Values(source: unknown, target: unknown, baseline: unknown): unknown {
   if (equal(target, baseline) || target === undefined) return source;
   if (Array.isArray(source) && Array.isArray(target)) {
     const key = (value: unknown) =>

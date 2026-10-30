@@ -37,10 +37,10 @@ machine's setting. Every other provider setting stays per machine.
 
 On mobile, open **Settings** and use the filter in its header to choose connected environments
 and a project. The filter stays available in server-setting pages. With **All projects** selected,
-the **Server settings** categories and auto-settle controls in **Thread behavior** edit the
-selected environments' defaults. Choosing a project edits its overrides on the selected
+the server-setting pages, such as Threads, Source control and Worktrees, edit the selected
+environments' defaults. Choosing a project edits its overrides on the selected
 environments. Use **Use defaults** in a page to remove that page's project overrides.
-Open **Settings → Projects & threads → Overview** to rename the project across its selected
+Open **Settings → Projects** to rename the project across its selected
 connected checkouts and see where those checkouts live.
 Settings that are environment-wide stay read-only while a project is selected. When selected
 targets disagree, a control shows **Mixed** until you choose one value. Appearance, keyboard,
@@ -48,7 +48,7 @@ and other phone-only settings ignore the filter.
 
 ## Worktree branch names
 
-In **Settings → Source Control → Worktree branch naming**, choose a static prefix,
+In **Settings → Worktrees → Worktree branch naming**, choose a static prefix,
 a model-selected semantic prefix such as `feat/` or `fix/`, or custom instructions
 for the complete name. The static prefix defaults to `t3/`; a trailing slash is
 optional, and an empty prefix adds nothing. Invalid characters in a static prefix
@@ -138,7 +138,7 @@ requests and the prompt each one produced.
 If the environment is offline, the sender gets an error and nothing runs;
 redeliver from the sender, such as GitHub's **Recent Deliveries**, once it is
 back. To have T3 Connect keep requests instead, turn on **Hold webhooks while
-offline** in **Settings → Connections**. T3 Connect then stores requests to a
+offline** in **Settings → Sharing & access**. T3 Connect then stores requests to a
 T3 Connect URL for up to 24 hours and delivers them when the environment
 returns. Leave it off if you don't want request bodies stored outside your
 machine. To skip requests that waited too long, set **Skip requests older
@@ -146,12 +146,12 @@ than** on the task.
 
 ## Defaults and inheritance
 
-General contains the model and workspace for new threads. Integrations controls agent browser
-access. Source Control contains automatic pull, the default pull request merge method and text
+Threads contains the model and workspace for new threads. Browser controls agent browser
+access. Source control contains automatic pull, the default pull request merge method and text
 generation. The same rows edit environment defaults or project overrides depending on the
 project crumb.
 
-The Project category, shown while a project is selected, holds the project's name, icon, actions,
+The Projects category, under Code, holds the project's name, icon, actions,
 checkouts and removal. Actions belong to a project: editing them creates the project's own list
 on each selected environment, and reset returns to the environment's shared list. A project's
 `t3.json` actions can be imported there.
@@ -162,7 +162,7 @@ built-in default. Leave a setting on **Inherit** to let the next tier decide.
 Browser access changes apply when an agent session next starts.
 
 New worktrees initialize git submodules recursively. If that step is slow because the repository
-declares many nested submodules, set **Submodules** in **Settings → General** (with the project
+declares many nested submodules, set **Submodules** in **Settings → Worktrees** under Advanced (with the project
 selected to override it there) to **Top level only** to stop at the ones the repository declares
 itself, or **Skip** to leave them for a setup script. It resolves in the same order as the
 workspace default: a `"worktreeSubmodules"` value in the `t3.json` of the branch being checked out
@@ -170,7 +170,7 @@ applies when the project and environment are both on **Inherit**.
 
 ## New worktree defaults
 
-Set **Default worktree base branch** in **Settings → General** to a ref such as `origin/GA`.
+Set **Default worktree base branch** in **Settings → Threads** to a ref such as `origin/GA`.
 Leave it empty to use the repository's default branch. A branch explicitly chosen for a new
 thread takes priority; pull request checkouts use the pull request's branch.
 
@@ -178,19 +178,19 @@ New worktree branches are named from your first message. To pick the name yourse
 branch picker of a new-worktree thread before sending and fill in **New branch**. A branch with
 that name must not exist yet.
 
-New worktrees go in the `worktrees` folder of the T3 home directory. Change **Settings → Storage →
+New worktrees go in the `worktrees` folder of the T3 home directory. Change **Settings → Worktrees →
 Worktree location** to an absolute path such as `/data/worktrees`, `D:\worktrees` or `~/worktrees`,
 or a path relative to the project's root, such as `../worktrees`. For `/projects/UI`, that relative
 path puts new worktrees below `/projects/worktrees/UI`.
 
 Both settings support project overrides on each selected environment. On mobile, open
-**Settings → New threads** and use the filter to choose the project and machine. The phone edits
+**Settings → Worktrees** and use the filter to choose the project and machine. The phone edits
 that machine's settings. Existing worktrees stay where they are, and cleanup covers their previous
 locations too. Clear a project override to inherit the machine's default again.
 
 ## Storage cleanup
 
-Open **Settings → Storage** to enable automatic cleanup on one machine or all connected
+Open **Settings → Worktrees → Cleanup** to enable automatic cleanup on one machine or all connected
 environments. Policies are off by default and run on the server at startup, when changed, and
 hourly. Offline machines keep their existing policies.
 
@@ -237,7 +237,7 @@ from the icon palette, derived from the saved project name. For example, `Nebula
 
 ## Keep the default branch current
 
-In Source Control, enable **Automatically pull** to keep the default-branch checkout up to date
+In Source control, enable **Automatically pull** to keep the default-branch checkout up to date
 with its configured upstream. Choose an environment to set the default or a project to override it.
 On mobile, use **Settings → Source control** to change selected environment defaults or project overrides.
 

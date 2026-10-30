@@ -38,7 +38,7 @@ export function nextScheduledCheck(now: Date): Date {
   throw new Error("unreachable");
 }
 
-export function stateFromInspection(
+function stateFromInspection(
   branch: string,
   inspection: T4UpstreamInspection,
   checkedAt: string,

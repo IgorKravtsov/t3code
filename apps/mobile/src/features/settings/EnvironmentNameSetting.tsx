@@ -8,7 +8,7 @@ import { AppText as Text } from "../../components/ui/AppText";
 import { serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { ConnectionFormField } from "../connection/ConnectionFormField";
-import { SettingsActionRow } from "./components/SettingsActionRow";
+import { ListActionRow as SettingsActionRow } from "../../components/ui/ListActionRow";
 import { SettingsSection } from "./components/SettingsSection";
 
 export function EnvironmentNameSetting(props: {

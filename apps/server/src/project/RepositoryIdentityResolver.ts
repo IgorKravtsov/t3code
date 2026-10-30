@@ -1,9 +1,5 @@
 import type { RepositoryIdentity, SourceControlProviderError } from "@t3tools/contracts";
 import { repositoryPathFromRemoteUrl } from "@t3tools/source-control-core/server/SourceControlProvider";
-import {
-  detectSourceControlProviderFromGitRemoteUrl,
-  normalizeGitRemoteUrl,
-} from "@t3tools/shared/git";
 import * as Cache from "effect/Cache";
 import * as Context from "effect/Context";
 import * as Data from "effect/Data";
@@ -13,20 +9,17 @@ import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
 
 import * as ProcessRunner from "../processRunner.ts";
+import { sourceControlDefinitions } from "../sourceControl/sourceControlDefinitions.ts";
 import { explicitBareRepositoryEnv } from "../vcs/VcsProcess.ts";
 import * as HostProcess from "@t3tools/shared/HostProcess";
 
 const DEFAULT_REPOSITORY_IDENTITY_CACHE_CAPACITY = 512;
-// Background sweeps resolve every project each minute. A long TTL keeps them
-// from spawning git each time. Clone, publish, and PR discovery (after a turn
-// and before it saves links) resolve with `refresh: true`.
+// Minute-by-minute sweeps need cached hits; clone, publish and PR discovery force refresh.
 const DEFAULT_POSITIVE_CACHE_TTL = Duration.minutes(15);
 const DEFAULT_NEGATIVE_CACHE_TTL = Duration.minutes(1);
 
 export interface RepositoryIdentityResolverOptions {
   readonly cacheCapacity?: number;
-  readonly positiveCacheTtl?: Duration.Input;
-  readonly negativeCacheTtl?: Duration.Input;
   readonly refine?: (
     identity: RepositoryIdentity,
   ) => Effect.Effect<RepositoryIdentity, SourceControlProviderError>;
@@ -42,8 +35,7 @@ export class RepositoryIdentityResolver extends Context.Service<
   }
 >()("t3/project/RepositoryIdentityResolver") {}
 
-// Local remotes (GitButler's `gb-local` is `.`) name a path on this machine,
-// not a repository, so unrelated repos would share one identity.
+// Local paths such as GitButler's gb-local=. would give unrelated repos the same identity.
 function isLocalRemoteUrl(url: string): boolean {
   if (/^file:/i.test(url)) return true;
   if (/^[a-z][a-z0-9+.-]*:\/\//i.test(url)) return false;
@@ -97,33 +89,34 @@ function repositoryPathOf(canonicalKey: string, remoteUrl: string): string {
   return displayPath?.toLowerCase() === canonicalPath ? displayPath : canonicalPath;
 }
 
+// `identityUrl` is `originUrl` with SSH host aliases resolved; clones keep the alias.
 function buildRepositoryOrigin(
   originUrl: string | undefined,
+  identityUrl: string | undefined,
   canonicalKey: string,
 ): RepositoryIdentity["origin"] {
-  if (!originUrl) return undefined;
-  const originKey = normalizeGitRemoteUrl(originUrl);
+  if (!originUrl || !identityUrl) return undefined;
+  const originKey = sourceControlDefinitions.repositoryKeyFromRemote(identityUrl);
   if (originKey === canonicalKey) return undefined;
-  const displayName = repositoryPathOf(originKey, originUrl);
-  return { canonicalKey: originKey, ...(displayName ? { displayName } : {}) };
+  const displayName = repositoryPathOf(originKey, identityUrl);
+  return { canonicalKey: originKey, remoteUrl: originUrl, ...(displayName ? { displayName } : {}) };
 }
 
 function buildRepositoryIdentity(input: {
   readonly remoteName: string;
   readonly remoteUrl: string;
   readonly originUrl: string | undefined;
+  readonly originIdentityUrl: string | undefined;
   readonly identityRemoteUrl: string;
   readonly rootPath: string;
 }): RepositoryIdentity {
-  const canonicalKey = normalizeGitRemoteUrl(input.identityRemoteUrl);
-  const sourceControlProvider = detectSourceControlProviderFromGitRemoteUrl(
-    input.identityRemoteUrl,
-  );
+  const canonicalKey = sourceControlDefinitions.repositoryKeyFromRemote(input.identityRemoteUrl);
+  const sourceControlProvider = sourceControlDefinitions.recognizeRemote(input.identityRemoteUrl);
   const repositoryPath = repositoryPathOf(canonicalKey, input.identityRemoteUrl);
   const repositoryPathSegments = repositoryPath.split("/").filter((segment) => segment.length > 0);
   const [owner] = repositoryPathSegments;
   const repositoryName = repositoryPathSegments.at(-1);
-  const origin = buildRepositoryOrigin(input.originUrl, canonicalKey);
+  const origin = buildRepositoryOrigin(input.originUrl, input.originIdentityUrl, canonicalKey);
 
   return {
     canonicalKey,
@@ -202,8 +195,7 @@ const resolveRepositoryIdentityCacheKey = Effect.fn("RepositoryIdentityResolver.
     const processRunner = yield* ProcessRunner.ProcessRunner;
     const env = explicitBareRepositoryEnv(process.env, yield* HostProcess.Platform);
 
-    // git is a real executable on every platform — no cmd.exe shell mode, which
-    // would split paths containing spaces during cmd's re-tokenization.
+    // git is always a real executable; cmd shell mode would split spaced paths on re-tokenization.
     const topLevelResult = yield* processRunner
       .run({
         command: "git",
@@ -277,7 +269,7 @@ const resolveRepositoryIdentityFromCacheKey = Effect.fn(
   if (remote === null) return null;
   const identityRemoteUrl = yield* resolveIdentityRemoteUrl(cacheKey.rootPath, remote.remoteUrl);
   const origin = remotes.get("origin");
-  const originUrl =
+  const originIdentityUrl =
     origin === remote.remoteUrl
       ? identityRemoteUrl
       : origin === undefined
@@ -286,7 +278,8 @@ const resolveRepositoryIdentityFromCacheKey = Effect.fn(
   return buildRepositoryIdentity({
     ...remote,
     identityRemoteUrl,
-    originUrl,
+    originUrl: origin,
+    originIdentityUrl,
     rootPath: cacheKey.rootPath,
   });
 });
@@ -300,9 +293,7 @@ export const make = Effect.fn("RepositoryIdentityResolver.make")(function* (
   const timeToLive = (exit: Exit.Exit<unknown>) =>
     Exit.match(exit, {
       onSuccess: (value) =>
-        value === null
-          ? (options.negativeCacheTtl ?? DEFAULT_NEGATIVE_CACHE_TTL)
-          : (options.positiveCacheTtl ?? DEFAULT_POSITIVE_CACHE_TTL),
+        value === null ? DEFAULT_NEGATIVE_CACHE_TTL : DEFAULT_POSITIVE_CACHE_TTL,
       onFailure: () => Duration.zero,
     });
 

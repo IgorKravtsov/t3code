@@ -105,7 +105,6 @@ export function WorktreeBaseBranchPicker({
       filteredItems={items}
       value={value || null}
       query={query}
-      resultsQuery={deferredQuery}
       onQueryChange={setQuery}
       open={open && !disabled}
       onOpenChange={handleOpenChange}

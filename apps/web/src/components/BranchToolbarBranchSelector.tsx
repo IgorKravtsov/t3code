@@ -4,7 +4,7 @@ import { useEnvironmentSettings } from "../hooks/useSettings";
 import { ThreadDetailsControl } from "./chat/ThreadDetailsControl";
 import { ComposerContextLabel } from "./ComposerContextLabel";
 import { useSupportsMultiplePullRequests } from "~/hooks/useSupportsMultiplePullRequests";
-import { resolveThreadCurrentPullRequestLink } from "@t3tools/shared/threadPullRequests";
+import { resolveThreadCurrentPullRequestLink } from "@t3tools/client-runtime/thread-pull-requests";
 import { useRightPanelStore } from "../rightPanelStore";
 import { scopeProjectRef, scopeThreadRef } from "@t3tools/client-runtime/environment";
 import {
@@ -19,7 +19,7 @@ import {
   type VcsRef,
   type ThreadId,
 } from "@t3tools/contracts";
-import { ChevronDownIcon, GitBranchIcon } from "lucide-react";
+import { GitBranchIcon } from "lucide-react";
 import {
   useDeferredValue,
   useEffect,
@@ -129,6 +129,9 @@ export function BranchToolbarBranchSelector({
   const switchRef = useAtomCommand(vcsEnvironment.switchRef, {
     reportFailure: false,
   });
+  const refreshStatus = useAtomCommand(vcsEnvironment.refreshStatus, {
+    reportFailure: false,
+  });
   const createRefMutation = useAtomCommand(vcsEnvironment.createRef, {
     reportFailure: false,
   });
@@ -231,10 +234,8 @@ export function BranchToolbarBranchSelector({
   const branchRefState = usePaginatedBranches({
     environmentId,
     cwd: branchCwd,
-    // The server filters refs by substring, so it has to be given the sanitized
-    // name as well: querying the raw "new branch" drops an existing new-branch
-    // from the response entirely, which would defeat the collision check below.
-    // Ref names cannot contain an ASCII space, so sanitizing loses no matches.
+    // Substring search needs sanitized names to detect new-branch collisions; refs cannot contain ASCII
+    // spaces.
     query: sanitizeNewRefName(deferredBranchQuery.trim()),
   });
   const trimmedBranchQuery = branchQuery.trim();
@@ -256,7 +257,6 @@ export function BranchToolbarBranchSelector({
   const createBranchItemValue = canCreateBranch
     ? `__create_new_branch__:${trimmedBranchQuery}`
     : null;
-  const defaultBranchName = refs.find((refName) => refName.isDefault)?.name ?? null;
   const pickerCreateBranchItemValue = hasExactBranchMatch ? null : createBranchItemValue;
   const branchPickerItems = [
     ...(checkoutPullRequestItemValue ? [checkoutPullRequestItemValue] : []),
@@ -490,10 +490,9 @@ export function BranchToolbarBranchSelector({
         currentGitBranch,
       );
 
-  // A started thread's server is creating its worktree and records the branch
-  // itself; defaulting it here would reset the thread to the base checkout and
-  // detach the agent that just started.
+  // The server sets started threads' branches; defaulting here would detach the agent from its worktree.
   const threadStarted = serverSession !== null;
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- writes a default base branch to the server thread or draft once branches load for a new worktree thread
   useEffect(() => {
     if (
       threadStarted ||
@@ -516,6 +515,9 @@ export function BranchToolbarBranchSelector({
 
   const handleOpenChange = (open: boolean) => {
     setIsBranchMenuOpen(open);
+    if (open && !isBranchMenuOpen && branchCwd !== null) {
+      void refreshStatus({ environmentId, input: { cwd: branchCwd, localOnly: true } });
+    }
     if (!open) {
       setBranchQuery("");
     }
@@ -666,7 +668,6 @@ export function BranchToolbarBranchSelector({
       onSelectItem={selectPickerItem}
       value={resolvedActiveBranch}
       query={branchQuery}
-      resultsQuery={deferredTrimmedBranchQuery}
       onQueryChange={setBranchQuery}
       hasNextPage={hasNextPage}
       isFetchingNextPage={isFetchingNextPage}
@@ -744,7 +745,7 @@ export function BranchToolbarBranchSelector({
           >
             <GitBranchIcon
               className={cn(
-                "size-3 shrink-0 opacity-70",
+                "size-3 shrink-0",
                 displayMode === "panel" && THREAD_DETAILS_PANEL_ICON_CLASS,
               )}
             />
@@ -755,9 +756,6 @@ export function BranchToolbarBranchSelector({
                 className="w-full"
               />
             </ComposerContextLabel>
-            {displayMode !== "panel" ? (
-              <ChevronDownIcon className="size-3 shrink-0 opacity-50" />
-            ) : null}
           </ComboboxTrigger>
         </span>
         {displayMode === "panel" && prNumber !== undefined && prUrl !== undefined ? (
@@ -773,7 +771,7 @@ export function BranchToolbarBranchSelector({
             status={displayedPrStatus}
             project={activeProject}
             label={panelPrLabel}
-            openAriaLabel={prUrl ?? "Open pull request"}
+            openAriaLabel={prUrl ?? `Open ${sourceControlPresentation.terminology.singular}`}
             onOpen={(event) => openPrLink(event, prUrl)}
             onActed={() => branchStatusQuery.refresh()}
           />
