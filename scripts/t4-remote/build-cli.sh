@@ -7,7 +7,8 @@
 # Runs in a dedicated, disposable checkout (T4_CLI_SRC, default
 # ~/.local/share/t4code-build/cli-src) that is reset to origin/t4-code on every run. With
 # T4_COMMIT set it refuses to build anything else, so deploy-all.sh installs the commit it
-# tested. Needs Node 24, rustup and mise; pnpm and Rust 1.95 are installed on demand. The
+# tested. Needs Node 24, rustup and mise (Linux also patchelf); pnpm and Rust 1.95 are
+# installed on demand. The
 # archive path is printed last. See docs/operations/t4-machines.md.
 set -euo pipefail
 unset ELECTRON_RUN_AS_NODE
