@@ -1,8 +1,8 @@
 diff --git a/apps/desktop/src/app/DesktopEarlyElectronStartup.ts b/apps/desktop/src/app/DesktopEarlyElectronStartup.ts
-index ad29470137..c653a288e5 100644
+index 3c571bcf02..7097176614 100644
 --- a/apps/desktop/src/app/DesktopEarlyElectronStartup.ts
 +++ b/apps/desktop/src/app/DesktopEarlyElectronStartup.ts
-@@ -32,7 +32,7 @@ export interface EarlyLinuxElectronOptions {
+@@ -31,7 +31,7 @@ export interface EarlyLinuxElectronOptions {
  }
  
  export const resolveLinuxDesktopEntryName = (isDevelopment: boolean): string =>
@@ -11,17 +11,8 @@ index ad29470137..c653a288e5 100644
  
  const trimNonEmpty = (value: string | undefined): string | null => {
    const trimmed = value?.trim();
-@@ -151,7 +151,7 @@ export function resolveEarlyLinuxElectronOptions(
-   const isDevelopment = isDevelopmentEnvironment(input.env);
-   return {
-     isDevelopment,
--    linuxWmClass: isDevelopment ? "t3code-dev" : "t3code",
-+    linuxWmClass: isDevelopment ? "t4code-dev" : "t4code",
-     linuxDesktopEntryName: resolveLinuxDesktopEntryName(isDevelopment),
-     passwordStore: resolveLinuxPasswordStoreSwitch({
-       preference,
 diff --git a/apps/desktop/src/app/DesktopEnvironment.ts b/apps/desktop/src/app/DesktopEnvironment.ts
-index ecf08255fe..aceb57609f 100644
+index d5fed4b228..36ad7287b1 100644
 --- a/apps/desktop/src/app/DesktopEnvironment.ts
 +++ b/apps/desktop/src/app/DesktopEnvironment.ts
 @@ -85,7 +85,7 @@ export class DesktopEnvironment extends Context.Service<
@@ -42,7 +33,7 @@ index ecf08255fe..aceb57609f 100644
    };
  }
  
-@@ -228,10 +228,10 @@ const make = Effect.fn("desktop.environment.make")(function* (
+@@ -228,7 +228,7 @@ const make = Effect.fn("desktop.environment.make")(function* (
      branding,
      displayName,
      appUserModelId: Option.getOrElse(config.appUserModelIdOverride, () =>
@@ -50,13 +41,9 @@ index ecf08255fe..aceb57609f 100644
 +      isDevelopment ? "com.t4tools.t4code.dev" : "com.t4tools.t4code",
      ),
      linuxDesktopEntryName: resolveLinuxDesktopEntryName(isDevelopment),
--    linuxWmClass: isDevelopment ? "t3code-dev" : "t3code",
-+    linuxWmClass: isDevelopment ? "t4code-dev" : "t4code",
      linuxApplicationsDir,
-     appImagePath: config.appImagePath,
-     defaultDesktopSettings: DesktopAppSettings.resolveDefaultDesktopSettings(input.appVersion),
 diff --git a/apps/desktop/src/app/DesktopLegacyLocalStorage.ts b/apps/desktop/src/app/DesktopLegacyLocalStorage.ts
-index 9deba23899..42fab9a754 100644
+index 90043d9398..7dee04faff 100644
 --- a/apps/desktop/src/app/DesktopLegacyLocalStorage.ts
 +++ b/apps/desktop/src/app/DesktopLegacyLocalStorage.ts
 @@ -6,7 +6,6 @@ import * as Option from "effect/Option";
@@ -67,7 +54,7 @@ index 9deba23899..42fab9a754 100644
  import { readChromiumLocalStorage } from "./chromiumLocalStorage.ts";
  import * as DesktopEnvironment from "./DesktopEnvironment.ts";
  
-@@ -23,8 +22,8 @@ export class DesktopLegacyLocalStorage extends Context.Service<
+@@ -20,8 +19,8 @@ export class DesktopLegacyLocalStorage extends Context.Service<
    }
  >()("@t3tools/desktop/app/DesktopLegacyLocalStorage") {}
  
@@ -78,7 +65,7 @@ index 9deba23899..42fab9a754 100644
  
  const make = Effect.gen(function* () {
    const environment = yield* DesktopEnvironment.DesktopEnvironment;
-@@ -79,7 +78,7 @@ const make = Effect.gen(function* () {
+@@ -78,7 +77,7 @@ const make = Effect.gen(function* () {
      yield* Ref.set(markerPath, Option.some(marker));
      const directory = yield* findV1LocalStorage;
      if (directory === null) return yield* writeMarker;
@@ -116,7 +103,7 @@ index 99a082b438..90053f72f7 100644
      const legacyPath = path.join(input.appDataDirectory, names.legacy);
      const inspect = (resourcePath: string) =>
 diff --git a/apps/desktop/src/electron/ElectronProtocol.ts b/apps/desktop/src/electron/ElectronProtocol.ts
-index 9abe17d775..9cca5c9fc1 100644
+index 27af3f2cfd..c53ce9a259 100644
 --- a/apps/desktop/src/electron/ElectronProtocol.ts
 +++ b/apps/desktop/src/electron/ElectronProtocol.ts
 @@ -13,8 +13,8 @@ import * as Scope from "effect/Scope";
@@ -131,10 +118,10 @@ index 9abe17d775..9cca5c9fc1 100644
  export function getDesktopScheme(isDevelopment: boolean): string {
    return isDevelopment ? DESKTOP_DEVELOPMENT_SCHEME : DESKTOP_PRODUCTION_SCHEME;
 diff --git a/apps/desktop/src/main.ts b/apps/desktop/src/main.ts
-index 3056ce1ea2..8619400f29 100644
+index 2fcb8d968c..25c113a293 100644
 --- a/apps/desktop/src/main.ts
 +++ b/apps/desktop/src/main.ts
-@@ -113,7 +113,7 @@ const resolveDesktopSshCliRunner = (
+@@ -115,7 +115,7 @@ const resolveDesktopSshCliRunner = (
        nodeEngineRange: serverPackageJson.engines.node,
      };
    }
@@ -144,10 +131,10 @@ index 3056ce1ea2..8619400f29 100644
  
  const layerDesktopSshEnvironment = Layer.unwrap(
 diff --git a/packages/shared/src/codexAuthHandoff.ts b/packages/shared/src/codexAuthHandoff.ts
-index 7f0e4ccd18..4c14a2b0cb 100644
+index d0146bf767..4bb4407958 100644
 --- a/packages/shared/src/codexAuthHandoff.ts
 +++ b/packages/shared/src/codexAuthHandoff.ts
-@@ -83,7 +83,7 @@ export function codexCallbackUrl(value: string, redirectUri: string, state: stri
+@@ -87,7 +87,7 @@ export function codexCallbackUrl(value: string, redirectUri: string, state: stri
  }
  
  export function codexAuthHandoffUrl(input: CodexAuthHandoff, development = false) {
@@ -157,19 +144,19 @@ index 7f0e4ccd18..4c14a2b0cb 100644
    return url.toString();
  }
 diff --git a/scripts/build-desktop-artifact.ts b/scripts/build-desktop-artifact.ts
-index 79bf578519..a81387c6e9 100644
+index 5de3c068fc..3289e05672 100644
 --- a/scripts/build-desktop-artifact.ts
 +++ b/scripts/build-desktop-artifact.ts
-@@ -56,7 +56,7 @@ import { Command, Flag } from "effect/cli";
+@@ -62,7 +62,7 @@ import { Command, Flag } from "effect/cli";
  import { ChildProcess, ChildProcessSpawner } from "effect/process";
  
  const LINUX_ICON_SIZES = [16, 22, 24, 32, 48, 64, 128, 256, 512] as const;
 -const DESKTOP_APP_ID = "com.t3tools.t3code";
 +const DESKTOP_APP_ID = "com.t4tools.t4code";
+ const APPLE_TEAM_ID_PATTERN = /^[A-Z0-9]{10}$/u;
  
- export class DesktopArtifactCopyError extends Schema.TaggedError<DesktopArtifactCopyError>()(
-   "DesktopArtifactCopyError",
-@@ -2681,10 +2681,8 @@ export function resolvePackageManagerUserAgent(packageManager: string): string {
+ const BuildPlatform = Schema.Literals(["mac", "linux", "win"]);
+@@ -2748,10 +2748,8 @@ export function resolvePackageManagerUserAgent(packageManager: string): string {
    return `${trimmed.slice(0, versionSeparator)}/${trimmed.slice(versionSeparator + 1)}`;
  }
  
@@ -182,8 +169,8 @@ index 79bf578519..a81387c6e9 100644
  }
  
  export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
-@@ -2706,7 +2704,7 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
-   const buildConfig: Record<string, unknown> = {
+@@ -2774,7 +2772,7 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
+     afterPack: (yield* Path.Path).join(yield* RepoRoot, "scripts/prepare-server-compile-cache.cjs"),
      appId: DESKTOP_APP_ID,
      productName: resolveDesktopProductName(version),
 -    artifactName: "T3-Code-${version}-${arch}.${ext}",
@@ -191,7 +178,7 @@ index 79bf578519..a81387c6e9 100644
      electronLanguages: [...DESKTOP_ELECTRON_LANGUAGES],
      files: [
        ...DESKTOP_FILE_EXCLUSIONS,
-@@ -2779,8 +2777,8 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
+@@ -2847,8 +2845,8 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
        },
        protocols: [
          {
@@ -202,7 +189,7 @@ index 79bf578519..a81387c6e9 100644
          },
          {
            name: "Web site URL",
-@@ -2829,15 +2827,15 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
+@@ -2892,15 +2890,15 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
      const repoRoot = yield* RepoRoot;
      buildConfig.linux = {
        target: target === "AppImage" ? [target, "deb"] : [target],
@@ -221,7 +208,7 @@ index 79bf578519..a81387c6e9 100644
          },
        ],
        desktop: {
-@@ -3750,7 +3748,7 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
+@@ -3853,7 +3851,7 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
        ? path.join(stageAppDir, WINDOWS_SERVER_RESOURCE_SOURCE_DIR, WINDOWS_SERVER_ASAR_RESOURCE)
        : undefined;
    const stagePackageJson: StagePackageJson = {
