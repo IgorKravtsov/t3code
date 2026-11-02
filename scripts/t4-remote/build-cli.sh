@@ -74,6 +74,23 @@ mise install -q "node@$sea_node"
 PATH="$(mise where "node@$sea_node")/bin:$PATH" node apps/server/scripts/cli.ts build-exe
 
 rm -rf release-cli
+# The archive step reads libatomic's package and version with dpkg-query (Ubuntu CI). On an
+# Arch host (omarchy), answer the same two queries from pacman instead.
+if ! command -v dpkg-query >/dev/null && command -v pacman >/dev/null; then
+  mkdir -p "$TMPDIR/bin"
+  cat >"$TMPDIR/bin/dpkg-query" <<'SHIM'
+#!/bin/bash
+set -euo pipefail
+if [ "$1" = "-S" ]; then
+  echo "$(pacman -Qoq "$2"): $2"
+else
+  version=$(pacman -Q "${!#}" | cut -d' ' -f2)
+  echo "$version ${!#} $version"
+fi
+SHIM
+  chmod +x "$TMPDIR/bin/dpkg-query"
+  export PATH="$TMPDIR/bin:$PATH"
+fi
 node scripts/build-cli-archive.ts --platform "$PLATFORM" --arch "$ARCH" --version "$VERSION" \
   --resource-monitor-dir "$WT/.cli-rm" --output-dir release-cli
 node scripts/smoke-cli-archive.ts --archive release-cli/* --expect-version "$VERSION"
