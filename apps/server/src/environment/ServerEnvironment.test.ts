@@ -18,6 +18,7 @@ import {
   RELAY_URL_SECRET,
 } from "../cloud/config.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
+import * as ManagedPolicy from "../policy/ManagedPolicy.ts";
 import * as ServerConfig from "../config.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as ServerEnvironment from "./ServerEnvironment.ts";
@@ -84,7 +85,7 @@ it.layer(NodeServices.layer)("ServerEnvironmentLive", (it) => {
         const fs = yield* FileSystem.FileSystem;
         const baseDir = yield* fs.makeTempDirectoryScoped({ prefix: "t3-environment-name-" });
         const settingsLayer = ServerSettings.layer.pipe(
-          Layer.provide(ServerSecretStore.layer),
+          Layer.provide(Layer.merge(ServerSecretStore.layer, ManagedPolicy.layerTest())),
           Layer.provide(SqlitePersistence.layerMemory),
         );
         const environmentLayer = Layer.mergeAll(

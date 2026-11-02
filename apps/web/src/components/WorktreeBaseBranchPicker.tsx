@@ -1,6 +1,6 @@
 import type { EnvironmentId } from "@t3tools/contracts";
 import { ChevronDownIcon, GitBranchIcon } from "lucide-react";
-import { useDeferredValue, useState } from "react";
+import { useState } from "react";
 
 import { usePaginatedBranches } from "../state/queries";
 import { useEnvironmentQuery } from "../state/query";
@@ -42,14 +42,14 @@ export function WorktreeBaseBranchPicker({
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const deferredQuery = useDeferredValue(query.trim());
+  const trimmedQuery = query.trim();
   const originControl =
     startFromOrigin !== undefined && onStartFromOriginChange
       ? { checked: startFromOrigin, onCheckedChange: onStartFromOriginChange }
       : undefined;
   const freeform = originControl === undefined;
   const branches = usePaginatedBranches(
-    { environmentId, cwd, query: sanitizeNewRefName(deferredQuery) },
+    { environmentId, cwd, query: sanitizeNewRefName(trimmedQuery) },
     { includeMatchingRemoteRefs: freeform },
   );
   const selectedRefQuery = useEnvironmentQuery(
@@ -74,7 +74,7 @@ export function WorktreeBaseBranchPicker({
       });
   const branchByName = new Map(branches.refs.map((branch) => [branch.name, branch]));
   const customRef =
-    freeform && deferredQuery && !branchByName.has(deferredQuery) ? deferredQuery : null;
+    freeform && trimmedQuery && !branchByName.has(trimmedQuery) ? trimmedQuery : null;
   const items = [
     ...(customRef ? [`${CUSTOM_REF_ITEM_PREFIX}${customRef}`] : []),
     ...branchByName.keys(),
