@@ -68,9 +68,10 @@ mkdir -p "$WT/.cli-rm/$KEY"
 cp "native/resource-monitor/target/$RUST_TARGET/release/t3-resource-monitor" "$WT/.cli-rm/$KEY/"
 
 pnpm exec vp run --filter t3 build
-# --build-sea needs Node 25.7+; CI pins 26.8.2 (SEA_NODE_VERSION in apps/server/vite.config.ts).
-mise install -q node@26.8.2
-PATH="$(mise where node@26.8.2)/bin:$PATH" node apps/server/scripts/cli.ts build-exe
+# Native executables must be built with exactly the root package.json engines.node version.
+sea_node=$(node -p 'require("./package.json").engines.node')
+mise install -q "node@$sea_node"
+PATH="$(mise where "node@$sea_node")/bin:$PATH" node apps/server/scripts/cli.ts build-exe
 
 rm -rf release-cli
 node scripts/build-cli-archive.ts --platform "$PLATFORM" --arch "$ARCH" --version "$VERSION" \
