@@ -118,10 +118,10 @@ index 27af3f2cfd..c53ce9a259 100644
  export function getDesktopScheme(isDevelopment: boolean): string {
    return isDevelopment ? DESKTOP_DEVELOPMENT_SCHEME : DESKTOP_PRODUCTION_SCHEME;
 diff --git a/apps/desktop/src/main.ts b/apps/desktop/src/main.ts
-index 2fcb8d968c..25c113a293 100644
+index d109518be1..ec88734726 100644
 --- a/apps/desktop/src/main.ts
 +++ b/apps/desktop/src/main.ts
-@@ -115,7 +115,7 @@ const resolveDesktopSshCliRunner = (
+@@ -116,7 +116,7 @@ const resolveDesktopSshCliRunner = (
        nodeEngineRange: serverPackageJson.engines.node,
      };
    }
@@ -144,7 +144,7 @@ index d0146bf767..4bb4407958 100644
    return url.toString();
  }
 diff --git a/scripts/build-desktop-artifact.ts b/scripts/build-desktop-artifact.ts
-index 5de3c068fc..3289e05672 100644
+index 6756f6fea8..45baf72417 100644
 --- a/scripts/build-desktop-artifact.ts
 +++ b/scripts/build-desktop-artifact.ts
 @@ -62,7 +62,7 @@ import { Command, Flag } from "effect/cli";
@@ -189,8 +189,8 @@ index 5de3c068fc..3289e05672 100644
          },
          {
            name: "Web site URL",
-@@ -2892,15 +2890,15 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
-     const repoRoot = yield* RepoRoot;
+@@ -2893,15 +2891,15 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
+     buildConfig.afterPack = path.join(repoRoot, "scripts/linux-after-pack.ts");
      buildConfig.linux = {
        target: target === "AppImage" ? [target, "deb"] : [target],
 -      executableName: "t3code",
@@ -208,7 +208,7 @@ index 5de3c068fc..3289e05672 100644
          },
        ],
        desktop: {
-@@ -3853,7 +3851,7 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
+@@ -3854,7 +3852,7 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
        ? path.join(stageAppDir, WINDOWS_SERVER_RESOURCE_SOURCE_DIR, WINDOWS_SERVER_ASAR_RESOURCE)
        : undefined;
    const stagePackageJson: StagePackageJson = {
