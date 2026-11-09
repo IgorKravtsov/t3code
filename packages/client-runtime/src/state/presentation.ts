@@ -8,7 +8,15 @@ import {
 import * as Option from "effect/Option";
 import { AsyncResult, Atom } from "effect/reactivity";
 
-import { AVAILABLE_CONNECTION_STATE, type SupervisorConnectionState } from "../connection/model.ts";
+import {
+  AVAILABLE_CONNECTION_STATE,
+  BearerConnectionTarget,
+  PrimaryConnectionTarget,
+  RelayConnectionTarget,
+  SshConnectionTarget,
+  type ConnectionTarget,
+  type SupervisorConnectionState,
+} from "../connection/model.ts";
 import {
   connectionCatalogDisplayUrl,
   presentConnectionState,
@@ -20,6 +28,20 @@ import {
 import type { ConnectionCatalogEntry } from "../connection/catalog.ts";
 import { type EnvironmentCatalogState, enabledEnvironmentIds } from "./connections.ts";
 import { hasRelayRoute } from "../connection/routes.ts";
+
+// Rebuilt through its class: a spread copy drops the prototype that Schema encoding needs.
+function relabelTarget(target: ConnectionTarget, label: string): ConnectionTarget {
+  switch (target._tag) {
+    case "PrimaryConnectionTarget":
+      return new PrimaryConnectionTarget({ ...target, label });
+    case "BearerConnectionTarget":
+      return new BearerConnectionTarget({ ...target, label });
+    case "RelayConnectionTarget":
+      return new RelayConnectionTarget({ ...target, label });
+    case "SshConnectionTarget":
+      return new SshConnectionTarget({ ...target, label });
+  }
+}
 
 function mapsEqual<K, V>(left: ReadonlyMap<K, V>, right: ReadonlyMap<K, V>): boolean {
   if (left.size !== right.size) {
@@ -99,7 +121,9 @@ export function createEnvironmentPresentationAtoms<E>(input: {
           source: entry,
           label,
           value:
-            label === entry.target.label ? entry : { ...entry, target: { ...entry.target, label } },
+            label === entry.target.label
+              ? entry
+              : { ...entry, target: relabelTarget(entry.target, label) },
         };
       }
       // The supervisor never publishes this placeholder; an enabled one starts out connecting.
