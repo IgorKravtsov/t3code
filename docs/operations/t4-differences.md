@@ -61,6 +61,10 @@ upstream ships an equivalent, drop the T4 version during the merge instead of ke
 - **SSH Persist reuse.** The SSH runner can reuse a remote host's installed Persist runtime
   instead of downloading a published release archive, which a local fork build cannot provide
   (`packages/ssh/src/tunnel.ts`, `reusePersistentService`).
+- **Executable build bundles undici.** Upstream's Effect HTTP clients (GitHub over `gh` sockets,
+  Cursor Origin) import `undici` as ESM, which the server single-executable cannot load, so
+  `apps/server/vite.config.ts` inlines it for executable builds. Drop this once upstream's
+  `cli.ts build-exe` passes without it.
 
 ## Product changes
 

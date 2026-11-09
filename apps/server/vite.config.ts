@@ -48,6 +48,9 @@ const SEA_TARGETS = {
   "win-arm64": { platform: "win", arch: "arm64" },
   "win-x64": { platform: "win", arch: "x64" },
 } as const;
+// T4: executables inline undici; Effect's NodeHttpClient imports it as ESM, which SEA cannot load.
+const bundlesUndici = (id: string) =>
+  packExecutable && (id === "undici" || id.startsWith("undici/"));
 const packExecutableTarget = process.env.T3CODE_PACK_EXE_TARGET?.trim();
 const cliNodeVersion = rootPackageJson.engines.node;
 if (packExecutable && !packExecutableTarget && process.versions.node !== cliNodeVersion) {
@@ -117,9 +120,10 @@ export default mergeConfig(
         : {}),
       deps: {
         // alwaysBundle=false has no opinion; neverBundle must retain transitive native acceleration.
-        alwaysBundle: shouldBundleCliDependency,
+        alwaysBundle: (id: string) => shouldBundleCliDependency(id) || bundlesUndici(id),
         neverBundle: (id: string) =>
-          (packBootstrap && id === "./binMain.ts") || isExternalCliDependency(id),
+          (packBootstrap && id === "./binMain.ts") ||
+          (isExternalCliDependency(id) && !bundlesUndici(id)),
         onlyBundle: false,
       },
       banner: {
