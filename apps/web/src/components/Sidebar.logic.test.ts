@@ -34,6 +34,7 @@ import {
   groupSidebarThreadsByProject,
   resolveSidebarFolderDot,
   sidebarFolderExpansionKeys,
+  scopeSidebarProjectKeysToEnvironments,
 } from "./Sidebar.logic";
 import { scopeThreadRef, scopedThreadKey } from "@t3tools/client-runtime/environment";
 import {
@@ -1648,5 +1649,43 @@ describe("shouldCreateNewThreadInCurrentProject", () => {
     expect(shouldCreateNewThreadInCurrentProject(false, 1, 3)).toBe(true);
     expect(shouldCreateNewThreadInCurrentProject(false, 0, 0)).toBe(true);
     expect(shouldCreateNewThreadInCurrentProject(true, 2, 2)).toBe(true);
+  });
+});
+
+describe("scopeSidebarProjectKeysToEnvironments", () => {
+  const projects = [
+    { environmentId: "local", id: "app" },
+    { environmentId: "local", id: "docs" },
+    { environmentId: "remote", id: "app" },
+  ];
+
+  it("keeps the project scope when no environment is chosen", () => {
+    const projectKeys = new Set(["local:app"]);
+    expect(
+      scopeSidebarProjectKeysToEnvironments({ projectKeys, environmentIds: [], projects }),
+    ).toBe(projectKeys);
+    expect(
+      scopeSidebarProjectKeysToEnvironments({ projectKeys: null, environmentIds: [], projects }),
+    ).toBeNull();
+  });
+
+  it("scopes to every project in the chosen environments", () => {
+    expect(
+      scopeSidebarProjectKeysToEnvironments({
+        projectKeys: null,
+        environmentIds: ["local"],
+        projects,
+      }),
+    ).toEqual(new Set(["local:app", "local:docs"]));
+  });
+
+  it("keeps only the scoped projects that live in the chosen environments", () => {
+    expect(
+      scopeSidebarProjectKeysToEnvironments({
+        projectKeys: new Set(["local:app", "remote:app"]),
+        environmentIds: ["remote"],
+        projects,
+      }),
+    ).toEqual(new Set(["remote:app"]));
   });
 });

@@ -1048,6 +1048,27 @@ export function pullRequestMatchesSearchQuery(
   return normalizedQuery.split(" ").every((token) => haystack.includes(token));
 }
 
+/**
+ * Narrows the project scope to the chosen environments. With no project scope,
+ * every project in those environments is in scope.
+ */
+export function scopeSidebarProjectKeysToEnvironments(input: {
+  readonly projectKeys: ReadonlySet<string> | null;
+  readonly environmentIds: ReadonlyArray<string>;
+  readonly projects: ReadonlyArray<{ readonly environmentId: string; readonly id: string }>;
+}): ReadonlySet<string> | null {
+  if (input.environmentIds.length === 0) return input.projectKeys;
+  const environmentIds = new Set(input.environmentIds);
+  const keys = new Set<string>();
+  for (const project of input.projects) {
+    const key = `${project.environmentId}:${project.id}`;
+    if (!environmentIds.has(project.environmentId)) continue;
+    if (input.projectKeys !== null && !input.projectKeys.has(key)) continue;
+    keys.add(key);
+  }
+  return keys;
+}
+
 export function filterSidebarProjectScopeItems<TItem extends { readonly value: string }>(input: {
   items: readonly TItem[];
   query: string;
