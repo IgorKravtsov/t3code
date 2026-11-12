@@ -34,6 +34,7 @@ export function BranchPicker({
   isFetchingNextPage,
   onLoadNext,
   statusText,
+  notice,
   originControl,
   newBranchControl,
   popupProps,
@@ -53,6 +54,7 @@ export function BranchPicker({
   isFetchingNextPage: boolean;
   onLoadNext: () => void;
   statusText: string | null;
+  notice?: string | null | undefined;
   originControl?: { checked: boolean; onCheckedChange: (checked: boolean) => void } | undefined;
   /** Names the branch a new worktree creates; empty lets the server generate one. */
   newBranchControl?: { value: string; onValueChange: (value: string) => void } | undefined;
@@ -140,6 +142,7 @@ export function BranchPicker({
                 keyExtractor={(item) => item}
                 {...(getItemType ? { getItemType } : {})}
                 renderItem={({ item, index }) => renderItem(item, index)}
+                extraData={renderItem}
                 estimatedItemSize={28}
                 drawDistance={336}
                 onScroll={updateBranchListScrollFades}
@@ -186,6 +189,7 @@ export function BranchPicker({
               </TooltipPopup>
             </Tooltip>
           ) : null}
+          {notice ? <ComboboxStatus>{notice}</ComboboxStatus> : null}
           {newBranchControl ? (
             <label
               htmlFor={newBranchInputId}
