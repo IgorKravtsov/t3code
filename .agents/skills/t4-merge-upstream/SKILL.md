@@ -86,6 +86,18 @@ dependencies (`git diff --name-only HEAD -- pnpm-lock.yaml`), install first with
   by the merge; say so instead of fixing it.
 - No repo-wide checks; `deploy-all.sh` runs the full T4 guard later.
 
+Anything you build only to verify is temporary. Before the first build, record what is already
+there, so cleanup removes only your output:
+
+```sh
+git status --short --ignored | grep '^!!' | grep -v node_modules > "$SCRATCH/ignored-before"
+```
+
+`$SCRATCH` is your scratchpad (outside the worktree). Prefer typecheck and tests over full builds
+(`dist`, `dist-electron`, `release`, `dist-exe`); build a bundle only when a failure needs one.
+Put any extra checkout (for example an `upstream/main` worktree used to compare a failing test)
+and temp dir in the scratchpad, never in `~/.local/share/t4code-build`.
+
 ## 5. Commit and hand off
 
 ```sh
@@ -95,6 +107,22 @@ git commit --no-edit -m "chore(t4): merge upstream/main into t4-code"
 Add a short body listing each conflicted file and how it was resolved (kept both, ported,
 dropped in favour of upstream). Push `origin t4-code` when the user asked to update T4 or
 agreed to push; then the t4-code skill covers deploying (`scripts/t4-remote/deploy-all.sh`).
+
+### Clean up temporary builds
+
+Once the merge is committed (or verification is finished), remove what you built:
+
+```sh
+git status --short --ignored | grep '^!!' | grep -v node_modules \
+  | grep -vxFf "$SCRATCH/ignored-before" | cut -c4-     # review, then rm -rf each path
+git worktree list                                      # remove your extra checkouts:
+git worktree remove --force <path> && git worktree prune
+```
+
+Also delete temp dirs you made, and leftover scratch files you added to the worktree, such as
+a `tsconfig.probe.json`. Never delete `node_modules`, the `.repos/` checkouts, or the deploy
+caches in `~/.local/share/t4code-build` (`cli-src`, `pnpm-*`, `scripts`): the deploy reuses
+them, and its scripts clean up their own temp dirs.
 
 If you cannot resolve a conflict confidently, stop with the merge in progress and report the
 file, both sides' intent, and the options. `git merge --abort` only with the user's agreement.
