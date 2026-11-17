@@ -88,7 +88,7 @@ index 006dd97092..83bcffb010 100644
  }
  
 diff --git a/apps/desktop/src/app/DesktopUserData.ts b/apps/desktop/src/app/DesktopUserData.ts
-index 99a082b438..90053f72f7 100644
+index 0124aa72e0..413016fa7d 100644
 --- a/apps/desktop/src/app/DesktopUserData.ts
 +++ b/apps/desktop/src/app/DesktopUserData.ts
 @@ -40,8 +40,8 @@ export const resolveUserDataPath = Effect.fn("desktop.userData.resolveUserDataPa
@@ -103,7 +103,7 @@ index 99a082b438..90053f72f7 100644
      const legacyPath = path.join(input.appDataDirectory, names.legacy);
      const inspect = (resourcePath: string) =>
 diff --git a/apps/desktop/src/electron/ElectronProtocol.ts b/apps/desktop/src/electron/ElectronProtocol.ts
-index 27af3f2cfd..c53ce9a259 100644
+index 7563898f43..00455c37be 100644
 --- a/apps/desktop/src/electron/ElectronProtocol.ts
 +++ b/apps/desktop/src/electron/ElectronProtocol.ts
 @@ -13,8 +13,8 @@ import * as Scope from "effect/Scope";
@@ -117,19 +117,18 @@ index 27af3f2cfd..c53ce9a259 100644
  
  export function getDesktopScheme(isDevelopment: boolean): string {
    return isDevelopment ? DESKTOP_DEVELOPMENT_SCHEME : DESKTOP_PRODUCTION_SCHEME;
-diff --git a/apps/desktop/src/main.ts b/apps/desktop/src/main.ts
-index d109518be1..ec88734726 100644
---- a/apps/desktop/src/main.ts
-+++ b/apps/desktop/src/main.ts
-@@ -116,7 +116,7 @@ const resolveDesktopSshCliRunner = (
-       nodeEngineRange: serverPackageJson.engines.node,
-     };
-   }
--  return { archiveVersion: environment.appVersion };
-+  return { archiveVersion: environment.appVersion, reusePersistentService: true };
+diff --git a/apps/desktop/src/ssh/DesktopSshEnvironment.ts b/apps/desktop/src/ssh/DesktopSshEnvironment.ts
+index fd749b663c..26489e4a53 100644
+--- a/apps/desktop/src/ssh/DesktopSshEnvironment.ts
++++ b/apps/desktop/src/ssh/DesktopSshEnvironment.ts
+@@ -93,6 +93,7 @@ export const resolveDesktopSshCliRunner = (
+   const releaseBaseUrl = env[CLI_RELEASE_BASE_URL_ENV]?.trim() || undefined;
+   return {
+     archiveVersion: environment.appVersion,
++    reusePersistentService: true,
+     ...(releaseBaseUrl === undefined ? {} : { releaseBaseUrl }),
+   };
  };
- 
- const layerDesktopSshEnvironment = Layer.unwrap(
 diff --git a/packages/shared/src/codexAuthHandoff.ts b/packages/shared/src/codexAuthHandoff.ts
 index d0146bf767..4bb4407958 100644
 --- a/packages/shared/src/codexAuthHandoff.ts
@@ -144,10 +143,10 @@ index d0146bf767..4bb4407958 100644
    return url.toString();
  }
 diff --git a/scripts/build-desktop-artifact.ts b/scripts/build-desktop-artifact.ts
-index 6756f6fea8..45baf72417 100644
+index 9d34e2412b..b05385329c 100644
 --- a/scripts/build-desktop-artifact.ts
 +++ b/scripts/build-desktop-artifact.ts
-@@ -62,7 +62,7 @@ import { Command, Flag } from "effect/cli";
+@@ -63,7 +63,7 @@ import { Command, Flag } from "effect/cli";
  import { ChildProcess, ChildProcessSpawner } from "effect/process";
  
  const LINUX_ICON_SIZES = [16, 22, 24, 32, 48, 64, 128, 256, 512] as const;
@@ -156,7 +155,7 @@ index 6756f6fea8..45baf72417 100644
  const APPLE_TEAM_ID_PATTERN = /^[A-Z0-9]{10}$/u;
  
  const BuildPlatform = Schema.Literals(["mac", "linux", "win"]);
-@@ -2748,10 +2748,8 @@ export function resolvePackageManagerUserAgent(packageManager: string): string {
+@@ -2765,10 +2765,8 @@ export function resolvePackageManagerUserAgent(packageManager: string): string {
    return `${trimmed.slice(0, versionSeparator)}/${trimmed.slice(versionSeparator + 1)}`;
  }
  
@@ -169,7 +168,7 @@ index 6756f6fea8..45baf72417 100644
  }
  
  export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
-@@ -2774,7 +2772,7 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
+@@ -2791,7 +2789,7 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
      afterPack: (yield* Path.Path).join(yield* RepoRoot, "scripts/prepare-server-compile-cache.cjs"),
      appId: DESKTOP_APP_ID,
      productName: resolveDesktopProductName(version),
@@ -178,7 +177,7 @@ index 6756f6fea8..45baf72417 100644
      electronLanguages: [...DESKTOP_ELECTRON_LANGUAGES],
      files: [
        ...DESKTOP_FILE_EXCLUSIONS,
-@@ -2847,8 +2845,8 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
+@@ -2870,8 +2868,8 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
        },
        protocols: [
          {
@@ -189,7 +188,7 @@ index 6756f6fea8..45baf72417 100644
          },
          {
            name: "Web site URL",
-@@ -2893,15 +2891,15 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
+@@ -2916,15 +2914,15 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
      buildConfig.afterPack = path.join(repoRoot, "scripts/linux-after-pack.ts");
      buildConfig.linux = {
        target: target === "AppImage" ? [target, "deb"] : [target],
@@ -208,7 +207,7 @@ index 6756f6fea8..45baf72417 100644
          },
        ],
        desktop: {
-@@ -3854,7 +3852,7 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
+@@ -3914,7 +3912,7 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
        ? path.join(stageAppDir, WINDOWS_SERVER_RESOURCE_SOURCE_DIR, WINDOWS_SERVER_ASAR_RESOURCE)
        : undefined;
    const stagePackageJson: StagePackageJson = {
