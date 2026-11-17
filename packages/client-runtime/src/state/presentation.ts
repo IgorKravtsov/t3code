@@ -62,6 +62,10 @@ function sameConnection(
   return left.phase === right.phase && left.error === right.error && left.traceId === right.traceId;
 }
 
+function sameRouteIds(left: ReadonlyArray<string>, right: ReadonlyArray<string>): boolean {
+  return left.length === right.length && left.every((routeId, index) => right[index] === routeId);
+}
+
 function withoutProviders(
   config: ServerConfig | null,
   previous: EnvironmentServerConfig | null,
@@ -140,11 +144,16 @@ export function createEnvironmentPresentationAtoms<E>(input: {
             ? previous.connection
             : connection,
         serverConfig: withoutProviders(serverConfig, previous?.serverConfig ?? null),
+        refusedRouteIds:
+          previous !== null && sameRouteIds(previous.refusedRouteIds, state.refusedRouteIds)
+            ? previous.refusedRouteIds
+            : state.refusedRouteIds,
       } satisfies EnvironmentPresentation;
       return previous !== null &&
         previous.entry === next.entry &&
         previous.connection === next.connection &&
-        previous.serverConfig === next.serverConfig
+        previous.serverConfig === next.serverConfig &&
+        previous.refusedRouteIds === next.refusedRouteIds
         ? previous
         : next;
     }).pipe(Atom.withLabel(`environment-presentation:${environmentId}`));
@@ -214,6 +223,7 @@ export function createEnvironmentPresentationAtoms<E>(input: {
         prior !== undefined &&
           prior.entry === presentation.entry &&
           prior.connection === presentation.connection &&
+          prior.refusedRouteIds === presentation.refusedRouteIds &&
           prior.serverConfig === serverConfig
           ? prior
           : { ...presentation, serverConfig },
@@ -359,6 +369,13 @@ export function createEnvironmentSummaryAtoms(input: {
         (get(input.presentationAtom(environmentId))?.serverConfig ?? null) !== null,
     ),
   );
+  const issuesSupportedAtom = Atom.make((get) =>
+    get(environmentIdsAtom).some(
+      (environmentId) =>
+        get(input.presentationAtom(environmentId))?.serverConfig?.environment.capabilities
+          .issues === true,
+    ),
+  );
   return {
     environmentIdsAtom,
     connectedEnvironmentIdsAtom,
@@ -366,5 +383,6 @@ export function createEnvironmentSummaryAtoms(input: {
     environmentsAtom,
     machineByIdAtom,
     pullRequestsSupportedAtom,
+    issuesSupportedAtom,
   };
 }
