@@ -1,4 +1,5 @@
 import type { EnvironmentId } from "@t3tools/contracts";
+import { T, useGT, useMessages, Var } from "gt-react";
 import { ChevronDownIcon, GitBranchIcon } from "lucide-react";
 import { useState } from "react";
 
@@ -40,6 +41,8 @@ export function WorktreeBaseBranchPicker({
   id?: string;
   "aria-label"?: string;
 }) {
+  const gt = useGT();
+  const messages = useMessages();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const trimmedQuery = query.trim();
@@ -51,6 +54,7 @@ export function WorktreeBaseBranchPicker({
   const branches = usePaginatedBranches(
     { environmentId, cwd, query: sanitizeNewRefName(trimmedQuery) },
     { includeMatchingRemoteRefs: freeform },
+    messages,
   );
   const selectedRefQuery = useEnvironmentQuery(
     cwd && value && !freeform
@@ -64,14 +68,17 @@ export function WorktreeBaseBranchPicker({
     branches.refs.find((branch) => branch.name === value) ??
     selectedRefQuery.data?.refs.find((branch) => branch.name === value);
   const label = freeform
-    ? value || placeholder || "Select ref"
-    : resolveBranchTriggerLabel({
-        activeWorktreePath: null,
-        effectiveEnvMode: "worktree",
-        resolvedActiveBranch: value || null,
-        resolvedActiveBranchIsRemote: selectedRef ? selectedRef.isRemote === true : null,
-        startFromOrigin: startFromOrigin ?? false,
-      });
+    ? value || placeholder || gt("Select ref")
+    : resolveBranchTriggerLabel(
+        {
+          activeWorktreePath: null,
+          effectiveEnvMode: "worktree",
+          resolvedActiveBranch: value || null,
+          resolvedActiveBranchIsRemote: selectedRef ? selectedRef.isRemote === true : null,
+          startFromOrigin: startFromOrigin ?? false,
+        },
+        messages,
+      );
   const branchByName = new Map(branches.refs.map((branch) => [branch.name, branch]));
   const customRef =
     freeform && trimmedQuery && !branchByName.has(trimmedQuery) ? trimmedQuery : null;
@@ -83,11 +90,17 @@ export function WorktreeBaseBranchPicker({
   const statusText =
     branches.error ??
     (branches.isPending && branches.data === null
-      ? "Loading refs..."
+      ? gt("Loading refs...")
       : branches.isFetchingNextPage
-        ? "Loading more refs..."
+        ? gt("Loading more refs...")
         : hasNextPage
-          ? `Showing ${branches.refs.length} of ${branches.data?.totalCount} refs`
+          ? gt(
+              "{total, plural, one {Showing {shown} of {total} refs} other {Showing {shown} of {total} refs}}",
+              {
+                shown: branches.refs.length,
+                total: String(branches.data?.totalCount),
+              },
+            )
           : null);
   const handleOpenChange = (next: boolean) => {
     setOpen(next);
@@ -126,7 +139,11 @@ export function WorktreeBaseBranchPicker({
               value={name}
               onClick={() => select(name)}
             >
-              <span className="truncate">Use &quot;{customRef}&quot;</span>
+              <span className="truncate">
+                <T>
+                  Use &quot;<Var>{customRef}</Var>&quot;
+                </T>
+              </span>
             </ComboboxItem>
           );
         }

@@ -1,9 +1,10 @@
 import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
+import { useGT } from "gt-react";
 import { useRef } from "react";
 import { Input } from "../ui/input";
 import { WorktreeBaseBranchPicker } from "../WorktreeBaseBranchPicker";
 import { SettingResetButton, SettingsRow } from "./settingsLayout";
-import { searchableSetting } from "./settingsSearch";
+import { useSearchableSetting } from "./settingsSearch";
 import { useSettingsScope } from "./SettingsScopeContext";
 import {
   useScopedSettings,
@@ -12,6 +13,8 @@ import {
 } from "./useScopedSettings";
 
 export function WorktreeBaseBranchSetting() {
+  const gt = useGT();
+  const searchableSetting = useSearchableSetting();
   const { connectedEnvironments, targets, target: representative, scope } = useSettingsScope();
   const settings = useScopedSettings();
   const update = useUpdateScopedSettings();
@@ -46,10 +49,14 @@ export function WorktreeBaseBranchSetting() {
   return (
     <SettingsRow
       {...searchableSetting("worktree-base-branch")}
-      description="Base ref for threads that start in a new worktree, such as origin/GA. Leave empty to use the repository's default branch. An explicitly selected branch takes priority."
+      description={gt(
+        "Base ref for threads that start in a new worktree, such as origin/GA. Leave empty to use the repository's default branch. An explicitly selected branch takes priority.",
+      )}
       status={
         startsInCurrentCheckout
-          ? "New threads start in the current checkout and keep its branch. This applies only when you pick New worktree."
+          ? gt(
+              "New threads start in the current checkout and keep its branch. This applies only when you pick New worktree.",
+            )
           : undefined
       }
       serverScoped
@@ -57,7 +64,7 @@ export function WorktreeBaseBranchSetting() {
       resetAction={
         mixed || settings.defaultWorktreeBaseBranch !== "" ? (
           <SettingResetButton
-            label="worktree base branch"
+            ariaLabel={gt("Reset worktree base branch to default")}
             onClick={() => update({ defaultWorktreeBaseBranch: "" })}
           />
         ) : null
@@ -65,20 +72,20 @@ export function WorktreeBaseBranchSetting() {
       control={
         member ? (
           <WorktreeBaseBranchPicker
-            aria-label="Default worktree base branch"
+            aria-label={gt("Default worktree base branch")}
             environmentId={member.environmentId}
             cwd={member.workspaceRoot}
             value={mixed ? "" : settings.defaultWorktreeBaseBranch}
-            placeholder={mixed ? "Mixed" : "Repository default"}
+            placeholder={mixed ? gt("Mixed") : gt("Repository default")}
             onValueChange={(value) => update({ defaultWorktreeBaseBranch: value })}
           />
         ) : (
           <Input
             key={`${targets.map((target) => `${target.environmentId}:${target.projectId}`).join(",")}:${mixed}:${settings.defaultWorktreeBaseBranch}`}
-            aria-label="Default worktree base branch"
+            aria-label={gt("Default worktree base branch")}
             autoCapitalize="none"
             spellCheck={false}
-            placeholder={mixed ? "Mixed" : "Repository default"}
+            placeholder={mixed ? gt("Mixed") : gt("Repository default")}
             defaultValue={mixed ? "" : settings.defaultWorktreeBaseBranch}
             onChange={() => {
               edited.current = true;

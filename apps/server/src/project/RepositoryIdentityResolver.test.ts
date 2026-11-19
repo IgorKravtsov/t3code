@@ -5,7 +5,7 @@ import { expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
-import { ChildProcessSpawner } from "effect/process";
+import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 import * as HostProcess from "@t3tools/shared/HostProcess";
 import { vi } from "vite-plus/test";
 
@@ -140,13 +140,13 @@ it.layer(NodeServices.layer)("RepositoryIdentityResolverLive", (it) => {
   it.effect.each([
     {
       remoteUrl: "git@work-account:ToneMeUp/UI.git",
-      args: ["-G", "-l", "git", "--", "work-account"],
+      args: ["-G", "git@work-account"],
     },
     {
       remoteUrl: "ssh://git@work-account:2222/ToneMeUp/UI.git",
-      args: ["-G", "-l", "git", "-p", "2222", "--", "work-account"],
+      args: ["-G", "git@work-account"],
     },
-    { remoteUrl: "work-account:ToneMeUp/UI.git", args: ["-G", "--", "work-account"] },
+    { remoteUrl: "work-account:ToneMeUp/UI.git", args: ["-G", "work-account"] },
   ])(
     "resolves the effective SSH hostname for $remoteUrl without rewriting the Git locator",
     ({ remoteUrl, args }) =>
@@ -180,7 +180,7 @@ it.layer(NodeServices.layer)("RepositoryIdentityResolverLive", (it) => {
         expect(identity?.canonicalKey).toBe("github.com/tonemeup/ui");
         expect(identity?.provider).toBe("github");
         expect(identity?.locator.remoteUrl).toBe(remoteUrl);
-        expect(calls.find((call) => call.command === "ssh")).toMatchObject({ cwd: "/UI", args });
+        expect(calls.find((call) => call.command === "ssh")).toMatchObject({ args });
         expect(yield* resolver.resolve("/UI")).toEqual(identity);
         expect(calls.filter((call) => call.command === "ssh")).toHaveLength(1);
       }),
@@ -231,6 +231,52 @@ it.layer(NodeServices.layer)("RepositoryIdentityResolverLive", (it) => {
       expect(identity?.provider).toBe("github");
       expect(identity?.displayName).toBe("T3Tools/t3code");
     }).pipe(Effect.provide(RepositoryIdentityResolver.layer)),
+  );
+
+  it.effect("keys a remote behind an SSH host alias by the host ssh config resolves it to", () =>
+    Effect.gen(function* () {
+      const fileSystem = yield* FileSystem.FileSystem;
+      const aliasDir = yield* fileSystem.makeTempDirectoryScoped({
+        prefix: "t3-repository-identity-ssh-alias-test-",
+      });
+      const plainDir = yield* fileSystem.makeTempDirectoryScoped({
+        prefix: "t3-repository-identity-ssh-plain-test-",
+      });
+
+      yield* git(aliasDir, ["init"]);
+      yield* git(aliasDir, ["remote", "add", "origin", "git@github.com-personal:owner/repo.git"]);
+      yield* git(plainDir, ["init"]);
+      yield* git(plainDir, ["remote", "add", "origin", "git@github.com:owner/repo.git"]);
+
+      const runner = yield* ProcessRunner.ProcessRunner;
+      // Stands in for `Host github.com-personal` / `HostName github.com` in ~/.ssh/config.
+      const resolver = yield* RepositoryIdentityResolver.make().pipe(
+        Effect.provideService(ProcessRunner.ProcessRunner, {
+          run: (input) =>
+            input.command === "ssh" && input.args.includes("-G")
+              ? Effect.succeed({
+                  stdout: input.args.some((arg) => arg.includes("github.com-personal"))
+                    ? "user git\nhostname github.com\nport 22\n"
+                    : `hostname ${input.args.at(-1) ?? ""}\nport 22\n`,
+                  stderr: "",
+                  code: ChildProcessSpawner.ExitCode(0),
+                  timedOut: false,
+                  stdoutTruncated: false,
+                  stderrTruncated: false,
+                  stdoutInvalidUtf8: false,
+                  stderrInvalidUtf8: false,
+                })
+              : runner.run(input),
+        }),
+      );
+
+      const aliasIdentity = yield* resolver.resolve(aliasDir);
+      const plainIdentity = yield* resolver.resolve(plainDir);
+
+      expect(plainIdentity?.canonicalKey).toBe("github.com/owner/repo");
+      expect(aliasIdentity?.canonicalKey).toBe(plainIdentity?.canonicalKey);
+      expect(aliasIdentity?.locator.remoteUrl).toBe("git@github.com-personal:owner/repo.git");
+    }).pipe(Effect.provide(ProcessRunner.layer)),
   );
 
   it.effect("keeps a literal .git in an Azure DevOps repository name", () =>
