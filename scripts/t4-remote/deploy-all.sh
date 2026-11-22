@@ -1,10 +1,10 @@
 #!/bin/bash
 # Brings every T4 install to the pushed t4-code commit: the T4 Code desktop app on this M4
-# (target "m4") and the headless servers on omarchy and the M1 (their ssh host names).
+# (target "m4") and the headless servers on omarchy and M2 Pro (their ssh host names).
 # Run it by hand on the M4 from the main checkout after merging upstream and pushing.
 #
 # Usage: scripts/t4-remote/deploy-all.sh [--dry-run] [--force] [--skip-tests] [target...]
-#        targets default to: m4 omarchy mac-m1-pro
+#        targets default to: m4 omarchy mac-m2-pro
 #
 #   1. Guard: runs every test file the fork changes relative to upstream. A test that fails
 #      here (twice) but passes on the upstream commit we merged means a merge lost T4
@@ -34,7 +34,7 @@ for arg in "$@"; do
     *) HOSTS+=("$arg") ;;
   esac
 done
-[ ${#HOSTS[@]} -gt 0 ] || HOSTS=(m4 omarchy mac-m1-pro)
+[ ${#HOSTS[@]} -gt 0 ] || HOSTS=(m4 omarchy mac-m2-pro)
 
 REPO=$(git rev-parse --show-toplevel)
 cd "$REPO"

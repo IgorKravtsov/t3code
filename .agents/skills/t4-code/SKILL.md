@@ -1,6 +1,6 @@
 ---
 name: t4-code
-description: Build, install, deploy and operate T4 Code, the `t4-code` fork of T3 Code on Ihor's machines. Use for building the local T4 desktop app, merging upstream T3 into t4-code, updating every T4 machine (the M4 app, omarchy and the M1) with scripts/t4-remote/deploy-all.sh, checking or restarting them, pairing clients, syncing T3 data into T4, and diagnosing a T4 install. Also use when asked which machines run T4, which ports or URLs they use, or how to use T4 alongside T3.
+description: Build, install, deploy and operate T4 Code, the `t4-code` fork of T3 Code on Ihor's machines. Use for building the local T4 desktop app, merging upstream T3 into t4-code, updating every T4 machine (the M4 app, omarchy and M2 Pro) with scripts/t4-remote/deploy-all.sh, checking or restarting them, pairing clients, syncing T3 data into T4, and diagnosing a T4 install. Also use when asked which machines run T4, which ports or URLs they use, or how to use T4 alongside T3.
 ---
 
 # T4 Code
@@ -23,14 +23,19 @@ the setup changes:
 
 ## Map
 
-| Machine                | ssh          | T4 runs as                                                   | Tailnet URL                                     |
-| ---------------------- | ------------ | ------------------------------------------------------------ | ----------------------------------------------- |
-| MacBook M4 (client)    | local        | `~/Applications/T4 Code.app`, own server on `:3774`          | `https://ihors-macbook-air.taild33710.ts.net`   |
-| omarchy (Linux x64)    | `omarchy`    | systemd user unit `t4code.service` on `127.0.0.1:3774`       | `https://omarchy.taild33710.ts.net:8444`        |
-| MacBook M1 (macOS arm) | `mac-m1-pro` | LaunchAgent `com.t4tools.t4code.service` on `127.0.0.1:3774` | `https://macbook-pro-m1.taild33710.ts.net:8443` |
+| Machine                    | ssh          | T4 runs as                                              | Tailnet URL                                        |
+| -------------------------- | ------------ | ------------------------------------------------------- | -------------------------------------------------- |
+| MacBook M4 (client)        | local        | `~/Applications/T4 Code.app`, own server on `:3774`     | `https://mac-m4-air.taild33710.ts.net`             |
+| omarchy (Linux x64)        | `omarchy`    | systemd user unit `t4code.service` on `127.0.0.1:3774`  | `https://omarchy.taild33710.ts.net:8444`           |
+| MacBook M2 Pro (macOS arm) | `mac-m2-pro` | LaunchAgent `com.t4tools.t4code.service` on port `3774` | `https://ihors-macbook-pro.taild33710.ts.net:8443` |
 
-T3 keeps `~/.t3` and port 3773 (omarchy `:8443`, M1 `:443`). Long-running work belongs on
-omarchy or the M1; the M4 environment stops when its app quits or the Mac sleeps.
+T3 keeps `~/.t3` and port 3773 on omarchy (`:8443`). The MacBook M1 no longer runs T3 or T4; its
+T4 data is archived on the M4 (see the runbook). Long-running work belongs on omarchy or an awake
+M2 Pro; the M4 environment stops when its app quits or the Mac sleeps.
+
+M2 Pro uses its own fresh `~/.t4` and the Codex CLI bundled with ChatGPT through
+`~/.local/bin/codex`. Its sleep settings are unchanged: keep it awake and on
+power for long-running work. See the runbook for its build toolchain.
 
 ## Which task, which tool
 
@@ -38,7 +43,7 @@ omarchy or the M1; the M4 environment stops when its app quits or the Mac sleeps
   `~/usr/projects/t3code`. 1) Merge `upstream/main` into `t4-code` and push. The user can press
   **Merge & rebuild** in the T4 app; an agent merges by hand, because that button relaunches T4
   and ends an agent session running inside it. Resolving conflicts: the t4-merge-upstream skill. 2) `scripts/t4-remote/deploy-all.sh --dry-run`, then without `--dry-run`. It updates all three
-  machines: the M4 app (`m4`), `omarchy` and `mac-m1-pro`. It stops if the merge broke a T4
+  machines: the M4 app (`m4`), `omarchy` and `mac-m2-pro`. It stops if the merge broke a T4
   test that passes upstream, skips machines that are current or running a turn, and rolls back a
   server that does not come up as T4. Full description: t4-machines.md, "Updating T4".
 - **Check what a machine runs:** m4 `~/.t4/t4-source.json` (`builtCommit`); servers

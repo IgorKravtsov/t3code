@@ -56,7 +56,7 @@ upstream ships an equivalent, drop the T4 version during the merge instead of ke
   `t4-code`, and relaunches T4 after it quits. When the merge conflicts it lists the files and waits for a manual
   merge; when `origin/t4-code` is ahead of the installed build it offers **Rebuild**.
 - **One deploy command.** `scripts/t4-remote/deploy-all.sh` brings the M4 app and both
-  headless servers to the pushed commit, after a test guard that stops a merge which lost T4
+  headless servers (omarchy and M2 Pro) to the pushed commit, after a test guard that stops a merge which lost T4
   behaviour ([t4-machines.md](./t4-machines.md#updating-t4)).
 - **SSH Persist reuse.** The SSH runner can reuse a remote host's installed Persist runtime
   instead of downloading a published release archive, which a local fork build cannot provide

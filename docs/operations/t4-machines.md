@@ -5,24 +5,27 @@
 > [release.md](./release.md#separate-local-t4-code-build).
 > What the fork changes compared with stock T3: [t4-differences.md](./t4-differences.md).
 
-T4 runs **beside** stock T3 on every machine and never shares its data: T3 keeps `~/.t3` and
+T4 runs **beside** stock T3 where both are installed and never shares its data: T3 keeps `~/.t3` and
 port 3773, T4 uses `~/.t4` and port 3774. Never run two servers against the same data home, and
 never point a T4 server at `~/.t3`.
 
-| Machine                                          | Role                                            | T4 server                                                                              | Tailnet URL                                     | Environment label |
-| ------------------------------------------------ | ----------------------------------------------- | -------------------------------------------------------------------------------------- | ----------------------------------------------- | ----------------- |
-| MacBook M4 (`ihors-macbook-air`)                 | Client; `T4 Code.app` with its own local server | Inside the desktop app, `127.0.0.1:3774`, only while the app runs and the Mac is awake | `https://ihors-macbook-air.taild33710.ts.net`   | `m4-air`          |
-| omarchy (Linux x64)                              | Always-on headless server                       | systemd user unit `t4code.service`, `127.0.0.1:3774`                                   | `https://omarchy.taild33710.ts.net:8444`        | `omarchy`         |
-| MacBook M1 (`Noutbuk-Igor`, user `igorkravtsov`) | Always-on headless server                       | launchd agent `com.t4tools.t4code.service`, `127.0.0.1:3774`                           | `https://macbook-pro-m1.taild33710.ts.net:8443` | `Ноутбук — Ігор`  |
+| Machine                                       | Role                                            | T4 server                                                                              | Tailnet URL                                        | Environment label |
+| --------------------------------------------- | ----------------------------------------------- | -------------------------------------------------------------------------------------- | -------------------------------------------------- | ----------------- |
+| MacBook M4 (`mac-m4-air`)                     | Client; `T4 Code.app` with its own local server | Inside the desktop app, `127.0.0.1:3774`, only while the app runs and the Mac is awake | `https://mac-m4-air.taild33710.ts.net`             | `m4-air`          |
+| omarchy (Linux x64)                           | Always-on headless server                       | systemd user unit `t4code.service`, `127.0.0.1:3774`                                   | `https://omarchy.taild33710.ts.net:8444`           | `omarchy`         |
+| MacBook M2 Pro (`mac-m2-pro`, user `shatori`) | Headless server                                 | launchd agent `com.t4tools.t4code.service`, port `3774`                                | `https://ihors-macbook-pro.taild33710.ts.net:8443` | `mac-m2-pro`      |
 
-T3 on the same machines: omarchy `t3code.service` → `:8443`, M1 `com.t3tools.t3code.service` →
-`:443`. Work that must survive the M4 closing its lid runs in the omarchy or M1 environment; the
-M4's own environment stops when the app quits or the Mac sleeps.
+T3 on omarchy: `t3code.service` → `:8443`. Work that must survive the M4 closing its lid runs in
+the omarchy or awake M2 Pro environment; the M4's own environment stops when the app quits or the
+Mac sleeps.
+
+The MacBook M1 no longer runs T3 or T4. Its T4 data (`~/.t4/userdata` without logs, as of
+2026-11-22) is archived on the M4 in `~/t4-archive/t4-mac-m1-pro-userdata-2026-11-22.tar.xz`.
 
 The source checkout is `~/usr/projects/t3code` on the M4, on branch `t4-code` (pushed to
 `origin` = `IgorKravtsov/t3code`).
 
-## Headless servers (omarchy and M1)
+## Headless servers (omarchy and M2 Pro)
 
 Each server is the fork's CLI archive (`t3` single executable plus `client/`,
 `resource-monitor/` and native `node_modules/`) installed under `~/.t4`:
@@ -53,7 +56,7 @@ systemctl --user restart t4code.service         # interrupts running turns; they
 tailscale serve status
 ```
 
-M1:
+M2 Pro (`ssh mac-m2-pro`):
 
 ```sh
 launchctl print gui/$(id -u)/com.t4tools.t4code.service | grep -E 'state|pid'
@@ -72,10 +75,9 @@ Unit and plist: `~/.config/systemd/user/t4code.service`,
 - **Crash:** `Restart=always` / `KeepAlive` restart the server within seconds.
 - **Reboot, omarchy:** the unit is enabled and `Linger=yes`, so it starts at boot without a
   login. The LUKS disk password is still needed at boot.
-- **Reboot, M1:** FileVault asks for the password before boot; entering it logs the user in,
-  which starts the launch agent. There is no auto-login, and the agent needs the login session
+- **Reboot, M2 Pro:** the launch agent starts when the user logs in. It needs the login session
   for Keychain-backed provider credentials, so it cannot be a system daemon.
-- **Sleep:** M1 never sleeps (`pmset disablesleep 1` plus `caffeinate`). omarchy stays awake with
+- **Sleep:** M2 Pro keeps its normal sleep settings. omarchy stays awake with
   the lid closed while on AC power (the remote-desktop sleep inhibitor). On battery it can still
   suspend; the server does not take a sleep inhibitor itself.
 - **Interrupted turns:** both servers set `continueThreadsAfterServerUpdate` and
@@ -103,8 +105,6 @@ Threads started in T4 create worktrees in `~/.t4/worktrees/<project>`; the confi
 `~/.t3/worktrees/<project>` rule for them (backup before that change: `config.bak-t4`). Add both
 paths when adding a project rule.
 
-M1 has no `gh` and no wrapper; GitHub features there use only a token saved in Settings.
-
 Check what the server would get, from a thread's worktree:
 
 ```sh
@@ -117,13 +117,15 @@ The servers accept direct HTTPS over the tailnet only; keep SSH for administrati
 pairs once with a one-time code. Mint one on the server (valid 2 hours here):
 
 ```sh
-# omarchy or M1
+# omarchy or M2 Pro
 ~/.t4/runtime/versions/$(python3 -c 'import json,os;print(json.load(open(os.path.expanduser("~/.t4/runtime/service-state.json")))["activeVersion"])')/t3 \
   auth pairing create --base-dir ~/.t4 --ttl 2h --label iPhone \
-  --base-url https://omarchy.taild33710.ts.net:8444      # or https://macbook-pro-m1.taild33710.ts.net:8443
-# the M4's own environment (T4 app running), from the CLI build checkout
-~/.local/share/t4code-build/cli-src/apps/server/dist-exe/t3 auth pairing create --base-dir ~/.t4 \
-  --ttl 2h --label iPhone --base-url https://ihors-macbook-air.taild33710.ts.net
+  --base-url https://omarchy.taild33710.ts.net:8444
+# M2 Pro: --base-url https://ihors-macbook-pro.taild33710.ts.net:8443
+# the M4's own environment (T4 app running), with the app's bundled server
+A=~/Applications/T4\ Code.app; ELECTRON_RUN_AS_NODE=1 "$A/Contents/MacOS/T4 Code" \
+  "$A/Contents/Resources/app.asar/apps/server/dist/bin.mjs" auth pairing create --base-dir ~/.t4 \
+  --ttl 2h --label iPhone --base-url https://mac-m4-air.taild33710.ts.net
 ```
 
 It prints a code and a `/pair#token=…` link. In T4 on a Mac add the environment by URL and code.
@@ -168,14 +170,14 @@ Where conflicts usually land: t4-differences.md, "Keeping merges clean".
 
 ```sh
 scripts/t4-remote/deploy-all.sh --dry-run   # the guard and the per-target decisions, no changes
-scripts/t4-remote/deploy-all.sh             # all targets: m4 omarchy mac-m1-pro
+scripts/t4-remote/deploy-all.sh             # all targets: m4 omarchy mac-m2-pro
 scripts/t4-remote/deploy-all.sh omarchy     # only the named targets
 ```
 
 Prerequisites, all on the M4: the checkout is on `t4-code` at `origin/t4-code` with a clean tree
 (the script refuses anything else, even with `--dry-run`, so it deploys exactly what was
 pushed); dependencies installed (`pnpm install`); remotes `origin` and `upstream`; ssh host
-aliases `omarchy` and `mac-m1-pro`; Node 24 through mise. The hosts need `sqlite3`, git, rustup
+aliases `omarchy` and `mac-m2-pro`; Node 24 through mise. The hosts need `sqlite3`, git, rustup
 and mise.
 
 What it does, in order:
@@ -201,7 +203,7 @@ What it does, in order:
      `~/Applications/T4 Code.app`. The running app keeps working (its bundle is renamed to
      `T4 Code.app.previous-<time>`), and the new build takes effect the next time T4 starts. An
      agent running inside T4 must not quit T4 itself; tell the user to restart it.
-   - **omarchy, mac-m1-pro**: each builds its own archive with `build-cli.sh` (copied to
+   - **omarchy, mac-m2-pro**: each builds its own archive with `build-cli.sh` (copied to
      `~/.local/share/t4code-build/scripts/` on the host), then `install-service.sh` installs it
      and restarts the service. The script checks that the server answers with the new version
      and the T4 capabilities (`environmentName`, `projectWorktreeDefaults`); otherwise it
@@ -217,10 +219,10 @@ If **Merge & rebuild** already rebuilt the M4 app, `m4` is reported as current. 
 Where the deployed commit is recorded, which is also how to check a machine by hand (the
 dry-run prints all three, given a clean checkout at `origin/t4-code`):
 
-| Target      | Recorded in                            | Build checkout                                    |
-| ----------- | -------------------------------------- | ------------------------------------------------- |
-| m4          | `~/.t4/t4-source.json` (`builtCommit`) | `~/.local/share/t4code-build/source-*` worktrees  |
-| omarchy, M1 | `~/.t4/runtime/t4-commit` on the host  | `~/.local/share/t4code-build/cli-src` on the host |
+| Target          | Recorded in                            | Build checkout                                    |
+| --------------- | -------------------------------------- | ------------------------------------------------- |
+| m4              | `~/.t4/t4-source.json` (`builtCommit`) | `~/.local/share/t4code-build/source-*` worktrees  |
+| omarchy, M2 Pro | `~/.t4/runtime/t4-commit` on the host  | `~/.local/share/t4code-build/cli-src` on the host |
 
 On the M4, `builtCommit` is the installed app, which runs only after T4 restarts; the running
 app reports only the package version (`0.0.45`), not a commit. T4 runs the installed build when
@@ -242,7 +244,7 @@ bash install-service.sh <archive> <version> 3774 <sha>       # version: t3-<vers
 ```
 
 `T4_COMMIT` makes the build refuse anything but that commit. Both hosts build natively and need
-git, rustup and mise; the build installs Node, pnpm 11.10 and Rust 1.95 when missing, without
+git, rustup and mise; the build installs Node, the pinned pnpm and Rust 1.95 when missing, without
 changing the host's defaults. Temporary files go to `~/.cache/t4-build-tmp`, because omarchy's
 `/tmp` is a small tmpfs. The M4 app alone: `node scripts/build-t4-local.ts`.
 
@@ -273,7 +275,7 @@ archive is needed for an installed version: `bash install-service.sh - <old-vers
 | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Pull request "not found" on omarchy                                   | Wrong GitHub account. Check the `gh api user` command above from the thread's worktree, the service `PATH`, and that the worktree path has a `gh-dir-auth` rule.                                                                                               |
 | Client says the server needs an update                                | Upstream raised `ORCHESTRATION_PROTOCOL_VERSION`; merge upstream into `t4-code` and run `deploy-all.sh`.                                                                                                                                                       |
-| Server down after reboot (M1)                                         | Nobody logged in yet; unlock FileVault at the Mac.                                                                                                                                                                                                             |
+| Server down after reboot (M2 Pro)                                     | Nobody logged in yet; log in at the Mac.                                                                                                                                                                                                                       |
 | `t4-sync` on macOS fails with `Cannot find module 'electron'`         | It ran with `ELECTRON_RUN_AS_NODE=1` from a T3 terminal on a build before `23099bfebe`; rebuild T4 or run `env -u ELECTRON_RUN_AS_NODE t4-sync`.                                                                                                               |
 | `t4-sync`/`t4-replace` over SSH: `Missing X server or $DISPLAY`       | Export the graphical session variables (see Data).                                                                                                                                                                                                             |
 | `migrate-userdata.py` hangs                                           | An older copy without the locked-database fallback met a Chromium database held by the in-app browser.                                                                                                                                                         |
@@ -285,3 +287,16 @@ archive is needed for an installed version: `bash install-service.sh - <old-vers
 | Tests fail only when run from a T3/T4 terminal or agent               | Those sessions export `ELECTRON_RUN_AS_NODE=1`; run tests with `env -u ELECTRON_RUN_AS_NODE`. `deploy-all.sh` unsets it.                                                                                                                                       |
 | Install says the server did not answer                                | Read the tail it prints from `boot-service.log`; check that port 3774 is free (`ss -ltnp` / `lsof -iTCP:3774`).                                                                                                                                                |
 | `launchctl bootstrap` fails with `Input/output error`                 | The old job was still unloading; rerun `install-service.sh`, which waits for it.                                                                                                                                                                               |
+
+## M2 Pro installation
+
+SSH alias: `mac-m2-pro`. It has its own `~/.t4/userdata`; no other machine's threads or
+credentials were copied. Check `~/.t4/runtime/t4-commit` for the installed commit.
+Codex uses the existing ChatGPT app CLI through `~/.local/bin/codex` and its existing login.
+
+M2 Pro is included in the default `deploy-all.sh` targets. To update only this machine, run
+`scripts/t4-remote/deploy-all.sh mac-m2-pro`. Its build toolchain uses mise in `~/.local/bin`,
+Node 24 and Rust 1.95; the build script installs its own pinned pnpm.
+
+The LaunchAgent starts at user login. M2 Pro retains its existing sleep settings; plug it into
+power and keep it awake for uninterrupted remote work.
