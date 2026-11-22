@@ -56,6 +56,7 @@ interface MultipleModelSendInput {
   readonly runtimeMode: RuntimeMode;
   readonly startFromOrigin: boolean;
   readonly newWorktreeBranchName: string | null;
+  readonly worktreeRepositories: ReadonlyArray<{ readonly path: string }> | undefined;
   readonly resetLocalDispatch: ReturnType<typeof useLocalDispatchState>["resetLocalDispatch"];
   readonly setThreadError: ReturnType<typeof makeThreadErrorSetter>;
 }
@@ -77,6 +78,7 @@ export function useMultipleModelSend(input: MultipleModelSendInput) {
     runtimeMode,
     startFromOrigin,
     newWorktreeBranchName,
+    worktreeRepositories,
     resetLocalDispatch,
     setThreadError,
   } = input;
@@ -144,9 +146,11 @@ export function useMultipleModelSend(input: MultipleModelSendInput) {
         { text: messageText, attachments: attachmentsSnapshot },
         m,
       );
-      promptRef.current = "";
       clearComposerDraftContent(composerDraftTarget);
-      composerRef.current?.resetCursorState();
+      if (currentRouteThreadKeyRef.current === routeThreadKey) {
+        promptRef.current = "";
+        composerRef.current?.resetCursorState();
+      }
       clearedDraft = true;
       const clearedDraftSnapshot = useComposerDraftStore
         .getState()
@@ -212,6 +216,7 @@ export function useMultipleModelSend(input: MultipleModelSendInput) {
                                 : `${newWorktreeBranchName}-${targetIndex + 1}`,
                           }
                         : {}),
+                      ...(worktreeRepositories ? { repositories: worktreeRepositories } : {}),
                     },
                     runSetupScript: true,
                   },
