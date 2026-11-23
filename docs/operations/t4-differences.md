@@ -2,7 +2,7 @@
 
 > For maintainers of the `t4-code` fork. Where T4 runs and how to operate it:
 > [t4-machines.md](./t4-machines.md). Building the desktop app:
-> [release.md](./release.md#separate-local-t4-code-build).
+> [t4-local-build.md](./t4-local-build.md).
 
 T4 Code is the `t4-code` branch of `IgorKravtsov/t3code`: stock T3 Code (`upstream/main`) plus
 the changes below. It is merged with upstream regularly, so every difference here is something a

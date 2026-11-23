@@ -2,7 +2,7 @@
 
 > Runbook for the `t4-code` fork as deployed on Ihor's machines: what runs where, how to check
 > it, restart it, update it and diagnose it. Building the local desktop app itself is covered in
-> [release.md](./release.md#separate-local-t4-code-build).
+> [t4-local-build.md](./t4-local-build.md).
 > What the fork changes compared with stock T3: [t4-differences.md](./t4-differences.md).
 
 T4 runs **beside** stock T3 where both are installed and never shares its data: T3 keeps `~/.t3` and
@@ -142,7 +142,7 @@ that commit with one command. Everything runs on the M4 from `~/usr/projects/t3c
 ### 1. Merge upstream
 
 Either the user presses **Merge & rebuild** in the T4 app (merge icon in the sidebar footer; see
-[release.md](./release.md#separate-local-t4-code-build)), which merges, pushes, rebuilds the M4
+[t4-local-build.md](./t4-local-build.md)), which merges, pushes, rebuilds the M4
 app and relaunches T4 after it quits, or merge by hand. An agent running inside T4 merges by
 hand, because the button ends its own session:
 

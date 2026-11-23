@@ -272,6 +272,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
   const [isFocused, setIsFocused] = useState(false);
   const pendingPastedTextAttachmentCountRef = useRef(0);
   const pendingNativeImagePasteCountRef = useRef(0);
+  const [pendingNativeImageCount, setPendingNativeImageCount] = useState(0);
   const [pendingPastedTextAttachmentCount, setPendingPastedTextAttachmentCount] = useState(0);
   const settingsRoutePresentedRef = useRef(false);
   const settingsSheetPresentation = useThreadSettingsSheetPresentation({
@@ -480,7 +481,8 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
   const isToolbarVisible = isVoiceInputPresented;
   const hasEditingAttachments =
     (queuedEdit !== null && queuedEdit.existingAttachments.length > 0) ||
-    stripAttachments.length > 0;
+    stripAttachments.length > 0 ||
+    pendingNativeImageCount > 0;
   const attachmentBlockReason = composerAttachmentUploadBlockReason(
     {
       environmentId: props.environmentId,
@@ -654,7 +656,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
           />
         </Animated.View>
       ) : null}
-      {stripAttachments.length > 0 ? (
+      {stripAttachments.length > 0 || pendingNativeImageCount > 0 ? (
         <Animated.View
           className="px-[14px] pb-2.5 pt-2"
           entering={COMPOSER_ATTACHMENT_ENTERING}
@@ -663,6 +665,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
           <ComposerAttachmentStrip
             environmentId={props.environmentId}
             attachments={stripAttachments}
+            pendingImageCount={pendingNativeImageCount}
             onRemove={isSubmissionLocked ? () => undefined : props.onRemoveDraftImage}
             onPressPreview={isSubmissionLocked ? undefined : onPressPreview}
             onPressVideo={isSubmissionLocked ? undefined : onPressVideo}
@@ -905,10 +908,15 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
                   onPasteImages={(uris) => {
                     if (isSubmissionLocked) return;
                     pendingNativeImagePasteCountRef.current += 1;
+                    setPendingNativeImageCount((count) => count + uris.length);
                     void nativeImageSubmit.pasteImages(uris).finally(() => {
                       pendingNativeImagePasteCountRef.current -= 1;
+                      setPendingNativeImageCount((count) => count - uris.length);
                     });
                   }}
+                  onPasteImagesPending={(delta) =>
+                    setPendingNativeImageCount((count) => count + delta)
+                  }
                   onPasteText={(paste) => {
                     if (isSubmissionLocked) return;
                     const insertPaste = () => {

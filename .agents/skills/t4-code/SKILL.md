@@ -15,7 +15,7 @@ the setup changes:
 - [docs/operations/t4-machines.md](../../../docs/operations/t4-machines.md): what runs where,
   status/logs/restart, staying up, GitHub accounts on omarchy, pairing clients, **updating T4**
   (merge upstream, then `deploy-all.sh`), data migration, troubleshooting.
-- [docs/operations/release.md#separate-local-t4-code-build](../../../docs/operations/release.md#separate-local-t4-code-build):
+- [docs/operations/t4-local-build.md](../../../docs/operations/t4-local-build.md):
   building the local desktop app, the in-app upstream updater (**Merge & rebuild** /
   **Rebuild**), `t4-sync` and `t4-replace`.
 - [docs/operations/t4-differences.md](../../../docs/operations/t4-differences.md): what the
@@ -51,7 +51,7 @@ power for long-running work. See the runbook for its build toolchain.
   (`serverVersion`). `deploy-all.sh --dry-run --skip-tests` prints all three (needs a clean
   checkout at `origin/t4-code`).
 - **Local desktop app, first install:** `node scripts/build-t4-local.ts --launch` (Node 24,
-  pnpm, Rust); see release.md.
+  pnpm, Rust); see t4-local-build.md.
 - **Pairing a phone or Mac:** t4-machines.md, "Connecting clients" (the `t3` binary is not on
   `PATH`; the section gives its full path on each machine).
 - **Bringing T3 data into T4:** `t4-sync` (merge) or `t4-replace` (fresh snapshot), with the T4
