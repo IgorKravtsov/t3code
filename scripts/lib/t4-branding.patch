@@ -175,8 +175,8 @@ index 9d34e2412b..b05385329c 100644
 -    artifactName: "T3-Code-${version}-${arch}.${ext}",
 +    artifactName: "T4-Code-${version}-${arch}.${ext}",
      electronLanguages: [...DESKTOP_ELECTRON_LANGUAGES],
-     files: [
-       ...DESKTOP_FILE_EXCLUSIONS,
+     // runAsNode stays on: the app starts its server, helpers and the `t3` shim by running this
+     // binary as Node, and that mode still accepts inspector flags.
 @@ -2870,8 +2868,8 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
        },
        protocols: [
