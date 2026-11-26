@@ -80,7 +80,7 @@ upstream ships an equivalent, drop the T4 version during the merge instead of ke
 | System notifications          | **Settings → General → Notifications** has separate **System notifications**, **Notification sound** and **In-app notifications** switches (stored in the shared `notificationMode`), so in-app toasts work without OS alerts. The OS notification is titled with the thread name, its body gives the status and the last agent reply (180 characters, error text for failures), and it also appears beside the in-app toast while T4 is focused, except for the thread on screen. Clicking it opens the thread. | `NotificationSettings.tsx`, `ThreadNotificationCoordinator.tsx`, `apps/web/src/t4/threadNotificationPreview.ts`, `apps/web/src/t4/notificationMode.ts` |
 
 The matching user guides are [remote-access.md](../user/remote-access.md#name-a-machine),
-[project-settings.md](../user/project-settings.md#new-worktree-defaults) and
+[project-settings.md](../user/project-settings.md#worktree-settings) and
 [source-control.md](../user/source-control.md).
 
 ## Keeping merges clean
